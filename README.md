@@ -1,1 +1,1 @@
-# stack-kubernetes-remote
+# addon-oam-kubernetes-remote
