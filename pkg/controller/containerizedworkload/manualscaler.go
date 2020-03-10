@@ -51,8 +51,7 @@ func SetupManualScalerTrait(mgr ctrl.Manager, l logging.Logger) error {
 			trait.Kind(workloadv1alpha1.KubernetesApplicationGroupVersionKind),
 			trait.WithLogger(l.WithValues("controller", name)),
 			trait.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-			trait.WithModifier(trait.ModifyFn(manualScalerModifier)),
-			trait.WithAccessors(trait.DeploymentFromKubeAppAccessor),
+			trait.WithModifier(trait.NewWorkloadModifierWithAccessor(manualScalerModifier, trait.DeploymentFromKubeAppAccessor)),
 		))
 }
 

@@ -41,15 +41,32 @@ var (
 // A Modifier is responsible for modifying or adding objects to a workload
 // package.
 type Modifier interface {
-	Modify(context.Context, runtime.Object, Trait, ModifyAccessor) error
+	Modify(context.Context, runtime.Object, Trait) error
+}
+
+// WorkloadModifier is a concrete implementation of a Modifier.
+type WorkloadModifier struct {
+	ModifyFn
+}
+
+// Modify modifies or adds an object in a workload package.
+func (m *WorkloadModifier) Modify(ctx context.Context, obj runtime.Object, t Trait) error {
+	return m.ModifyFn(ctx, obj, t)
+}
+
+// NewWorkloadModifierWithAccessor is a modifier of a workload package that uses an accessor.
+func NewWorkloadModifierWithAccessor(m ModifyFn, a ModifyAccessor) Modifier {
+	return &WorkloadModifier{
+		ModifyFn: func(ctx context.Context, obj runtime.Object, t Trait) error { return a(ctx, obj, t, m) },
+	}
 }
 
 // A ModifyFn modifies or adds an object to a workload package.
-type ModifyFn func(context.Context, runtime.Object, Trait) error
+type ModifyFn func(ctx context.Context, obj runtime.Object, t Trait) error
 
 // Modify object in workload package.
-func (fn ModifyFn) Modify(ctx context.Context, obj runtime.Object, t Trait, m ModifyAccessor) error {
-	return m(ctx, obj, t, fn)
+func (fn ModifyFn) Modify(ctx context.Context, obj runtime.Object, t Trait) error {
+	return fn(ctx, obj, t)
 }
 
 var _ Modifier = ModifyFn(NoopModifier)

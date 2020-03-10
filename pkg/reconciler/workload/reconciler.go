@@ -77,17 +77,10 @@ func WithRecorder(er event.Recorder) ReconcilerOption {
 	}
 }
 
-// WithPackager specifies how the Reconciler should package the workload.
-func WithPackager(p Packager) ReconcilerOption {
+// WithPacker specifies how the Reconciler should package the workload.
+func WithPacker(p Packer) ReconcilerOption {
 	return func(r *Reconciler) {
 		r.workload = p
-	}
-}
-
-// WithWrappers specifies how the Reconciler should wrap the packaged workload.
-func WithWrappers(w ...PackageWrapper) ReconcilerOption {
-	return func(r *Reconciler) {
-		r.wrappers = w
 	}
 }
 
@@ -104,8 +97,7 @@ func WithApplicator(a resource.Applicator) ReconcilerOption {
 type Reconciler struct {
 	client      client.Client
 	newWorkload func() Workload
-	workload    Packager
-	wrappers    []PackageWrapper
+	workload    Packer
 	applicator  resource.Applicator
 
 	log    logging.Logger
@@ -133,7 +125,6 @@ func NewReconciler(m ctrl.Manager, workload Kind, o ...ReconcilerOption) *Reconc
 		client:      m.GetClient(),
 		newWorkload: nw,
 		workload:    PackageFn(NoopPackage),
-		wrappers:    []PackageWrapper{NoopWrapper},
 		applicator:  resource.ApplyFn(resource.Apply),
 		log:         logging.NewNopLogger(),
 		record:      event.NewNopRecorder(),
@@ -161,7 +152,7 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 
 	log = log.WithValues("uid", workload.GetUID(), "version", workload.GetResourceVersion())
 
-	obj, err := r.workload.Package(ctx, workload, r.wrappers...)
+	obj, err := r.workload.Package(ctx, workload)
 	if err != nil {
 		log.Debug("Cannot package workload", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(workload, event.Warning(reasonCannotPackageWorkload, err))

@@ -32,29 +32,48 @@ const (
 	errWrapInKubeApp = "unable to wrap object in KubernetesApplication"
 )
 
-// A Packager is responsible for packaging workloads into other objects.
-type Packager interface {
-	Package(context.Context, Workload, ...PackageWrapper) (runtime.Object, error)
+// A Packer is responsible for packaging workloads into other objects.
+type Packer interface {
+	Package(context.Context, Workload) (runtime.Object, error)
+}
+
+// A Packager is a concrete implementation of a Packer.
+type Packager struct {
+	PackageFn
+}
+
+// Package a workload into an object.
+func (p *Packager) Package(ctx context.Context, w Workload) (runtime.Object, error) {
+	return p.PackageFn(ctx, w)
+}
+
+// NewPackagerWithWrappers returns a Packer that packages and wraps a workload.
+func NewPackagerWithWrappers(p PackageFn, wp ...PackageWrapper) Packer {
+	return &Packager{
+		PackageFn: func(ctx context.Context, w Workload) (runtime.Object, error) {
+			obj, err := p(ctx, w)
+			if err != nil {
+				return nil, err
+			}
+			for _, wrap := range wp {
+				if obj, err = wrap(ctx, w, obj); err != nil {
+					return nil, err
+				}
+			}
+			return obj, nil
+		},
+	}
 }
 
 // A PackageFn packages a workload into an object.
 type PackageFn func(context.Context, Workload) (runtime.Object, error)
 
-// Package workload into object and apply all wrappers.
-func (fn PackageFn) Package(ctx context.Context, w Workload, p ...PackageWrapper) (runtime.Object, error) {
-	obj, err := fn(ctx, w)
-	if err != nil {
-		return nil, err
-	}
-	for _, wrap := range p {
-		if obj, err = wrap(ctx, w, obj); err != nil {
-			return nil, err
-		}
-	}
-	return obj, nil
+// Package workload into object with no wrappers.
+func (fn PackageFn) Package(ctx context.Context, w Workload) (runtime.Object, error) {
+	return fn(ctx, w)
 }
 
-var _ Packager = PackageFn(NoopPackage)
+var _ Packer = PackageFn(NoopPackage)
 
 // NoopPackage does not package the workload and does not return error.
 func NoopPackage(ctx context.Context, w Workload) (runtime.Object, error) {

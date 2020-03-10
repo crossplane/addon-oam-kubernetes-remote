@@ -103,7 +103,7 @@ func TestReconciler(t *testing.T) {
 					Scheme: fake.SchemeWith(&workloadfake.Workload{}),
 				},
 				w: Kind(fake.GVK(&workloadfake.Workload{})),
-				o: []ReconcilerOption{WithPackager(PackageFn(func(_ context.Context, _ Workload) (runtime.Object, error) {
+				o: []ReconcilerOption{WithPacker(PackageFn(func(_ context.Context, _ Workload) (runtime.Object, error) {
 					return nil, errBoom
 				}))},
 			},
@@ -133,12 +133,11 @@ func TestReconciler(t *testing.T) {
 				},
 				w: Kind(fake.GVK(&workloadfake.Workload{})),
 				o: []ReconcilerOption{
-					WithPackager(PackageFn(func(_ context.Context, _ Workload) (runtime.Object, error) {
+					WithPacker(NewPackagerWithWrappers(func(_ context.Context, _ Workload) (runtime.Object, error) {
 						return nil, nil
-					})),
-					WithWrappers(func(_ context.Context, _ Workload, _ runtime.Object) (runtime.Object, error) {
+					}, func(ctx context.Context, w Workload, obj runtime.Object) (runtime.Object, error) {
 						return nil, errBoom
-					}),
+					})),
 				},
 			},
 			want: want{result: reconcile.Result{RequeueAfter: shortWait}},

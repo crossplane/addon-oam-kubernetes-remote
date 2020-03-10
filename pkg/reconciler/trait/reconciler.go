@@ -86,14 +86,6 @@ func WithModifier(m Modifier) ReconcilerOption {
 	}
 }
 
-// WithAccessors specifies how the Reconciler should access the part of the
-// workload package to be modified.
-func WithAccessors(m ModifyAccessor) ReconcilerOption {
-	return func(r *Reconciler) {
-		r.accessor = m
-	}
-}
-
 // WithApplicator specifies how the Reconciler should apply the workload
 // package modification.
 func WithApplicator(a resource.Applicator) ReconcilerOption {
@@ -109,7 +101,6 @@ type Reconciler struct {
 	newTrait   func() Trait
 	newPackage func() Object
 	trait      Modifier
-	accessor   ModifyAccessor
 	applicator resource.Applicator
 
 	log    logging.Logger
@@ -155,7 +146,6 @@ func NewReconciler(m ctrl.Manager, trait Kind, p Kind, o ...ReconcilerOption) *R
 		newTrait:   nt,
 		newPackage: np,
 		trait:      ModifyFn(NoopModifier),
-		accessor:   NoopModifyAccessor,
 		applicator: resource.ApplyFn(resource.Apply),
 
 		log:    logging.NewNopLogger(),
@@ -200,7 +190,7 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 		return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, trait), errUpdateTraitStatus)
 	}
 
-	if err := r.trait.Modify(ctx, pack, trait, r.accessor); err != nil {
+	if err := r.trait.Modify(ctx, pack, trait); err != nil {
 		log.Debug("Cannot modify workload package", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(trait, event.Warning(reasonCannotModifyPackage, err))
 		trait.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errTraitModify)))

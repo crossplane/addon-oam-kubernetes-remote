@@ -52,7 +52,7 @@ func main() {
 	cfg, err := ctrl.GetConfig()
 	kingpin.FatalIfError(err, "Cannot get API server rest config")
 
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{SyncPeriod: syncPeriod, MetricsBindAddress: "0"})
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{SyncPeriod: syncPeriod})
 	kingpin.FatalIfError(err, "Cannot create controller manager")
 
 	kingpin.FatalIfError(crossplaneapis.AddToScheme(mgr.GetScheme()), "Cannot add core Crossplane APIs to scheme")
