@@ -134,10 +134,7 @@ func KubeAppWrapper(ctx context.Context, w Workload, objs []Object) ([]Object, e
 		app.Spec.ResourceTemplates = append(app.Spec.ResourceTemplates, kart)
 	}
 
-	// A workload's package must have the same name and namespace, and must be
-	// controlled by the same owner.
 	app.SetName(w.GetName())
-	app.SetNamespace(w.GetNamespace())
 
 	app.Spec.ResourceSelector = &metav1.LabelSelector{
 		MatchLabels: map[string]string{

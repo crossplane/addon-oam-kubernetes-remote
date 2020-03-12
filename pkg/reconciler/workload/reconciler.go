@@ -166,19 +166,22 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 	}
 
 	for _, o := range objs {
+		// A workload's translation must be controlled by the workload.
+		meta.AddOwnerReference(o, *metav1.NewControllerRef(workload, workload.GetObjectKind().GroupVersionKind()))
+
+		// All top-level objects must be in the same namespace as the workload.
+		o.SetNamespace(workload.GetNamespace())
+
 		if err := r.applicator.Apply(ctx, r.client, o, resource.ControllersMustMatch()); err != nil {
-			log.Debug("Cannot apply workload translate", "error", err, "requeue-after", time.Now().Add(shortWait))
+			log.Debug("Cannot apply workload translation", "error", err, "requeue-after", time.Now().Add(shortWait))
 			r.record.Event(workload, event.Warning(reasonCannotApplyWorkloadTranslation, err))
 			workload.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyWorkloadTranslation)))
 			return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, workload), errUpdateWorkloadStatus)
 		}
-
-		// A workload's translation must be controlled by the workload.
-		meta.AddOwnerReference(o, *metav1.NewControllerRef(workload, workload.GetObjectKind().GroupVersionKind()))
 	}
 
 	r.record.Event(workload, event.Normal(reasonTranslateWorkload, "Successfully translated workload"))
-	log.Debug("Successfully translated workload as KubernetesApplication", "kind", workload.GetObjectKind().GroupVersionKind().String())
+	log.Debug("Successfully translated workload", "kind", workload.GetObjectKind().GroupVersionKind().String())
 
 	workload.SetConditions(v1alpha1.ReconcileSuccess())
 	return reconcile.Result{RequeueAfter: longWait}, errors.Wrap(r.client.Status().Update(ctx, workload), errUpdateWorkloadStatus)
