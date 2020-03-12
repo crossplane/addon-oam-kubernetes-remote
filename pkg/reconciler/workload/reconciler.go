@@ -42,20 +42,18 @@ const (
 
 // Reconcile error strings.
 const (
-	errGetWorkload          = "cannot get workload"
-	errUpdateWorkloadStatus = "cannot update workload status"
-	errPackageWorkload      = "cannot package workload"
-	errGetPackage           = "cannot get workload package"
-	errApplyWorkloadPackage = "cannot apply workload package"
+	errGetWorkload              = "cannot get workload"
+	errUpdateWorkloadStatus     = "cannot update workload status"
+	errTranslateWorkload        = "cannot translate workload"
+	errApplyWorkloadTranslation = "cannot apply workload translation"
 )
 
 // Reconcile event reasons.
 const (
-	reasonPackageWorkload = "WorkloadPackaged"
+	reasonTranslateWorkload = "WorkloadTranslated"
 
-	reasonCannotGetPackage           = "CannotGetWorkloadPackage"
-	reasonCannotPackageWorkload      = "CannotPackageWorkload"
-	reasonCannotApplyWorkloadPackage = "CannotApplyWorkloadPackage"
+	reasonCannotTranslateWorkload        = "CannotTranslateWorkload"
+	reasonCannotApplyWorkloadTranslation = "CannotApplyWorkloadTranslation"
 )
 
 const labelKey = "workload.oam.crossplane.io"
@@ -77,15 +75,15 @@ func WithRecorder(er event.Recorder) ReconcilerOption {
 	}
 }
 
-// WithPacker specifies how the Reconciler should package the workload.
-func WithPacker(p Packer) ReconcilerOption {
+// WithTranslator specifies how the Reconciler should translate the workload.
+func WithTranslator(t Translator) ReconcilerOption {
 	return func(r *Reconciler) {
-		r.workload = p
+		r.workload = t
 	}
 }
 
 // WithApplicator specifies how the Reconciler should apply the workload
-// package.
+// translation.
 func WithApplicator(a resource.Applicator) ReconcilerOption {
 	return func(r *Reconciler) {
 		r.applicator = a
@@ -97,7 +95,7 @@ func WithApplicator(a resource.Applicator) ReconcilerOption {
 type Reconciler struct {
 	client      client.Client
 	newWorkload func() Workload
-	workload    Packer
+	workload    Translator
 	applicator  resource.Applicator
 
 	log    logging.Logger
@@ -124,7 +122,7 @@ func NewReconciler(m ctrl.Manager, workload Kind, o ...ReconcilerOption) *Reconc
 	r := &Reconciler{
 		client:      m.GetClient(),
 		newWorkload: nw,
-		workload:    PackageFn(NoopPackage),
+		workload:    TranslateFn(NoopTranslate),
 		applicator:  resource.ApplyFn(resource.Apply),
 		log:         logging.NewNopLogger(),
 		record:      event.NewNopRecorder(),
@@ -152,23 +150,25 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 
 	log = log.WithValues("uid", workload.GetUID(), "version", workload.GetResourceVersion())
 
-	obj, err := r.workload.Package(ctx, workload)
+	objs, err := r.workload.Translate(ctx, workload)
 	if err != nil {
-		log.Debug("Cannot package workload", "error", err, "requeue-after", time.Now().Add(shortWait))
-		r.record.Event(workload, event.Warning(reasonCannotPackageWorkload, err))
-		workload.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errPackageWorkload)))
+		log.Debug("Cannot translate workload", "error", err, "requeue-after", time.Now().Add(shortWait))
+		r.record.Event(workload, event.Warning(reasonCannotTranslateWorkload, err))
+		workload.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errTranslateWorkload)))
 		return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, workload), errUpdateWorkloadStatus)
 	}
 
-	if err := r.applicator.Apply(ctx, r.client, obj, resource.ControllersMustMatch()); err != nil {
-		log.Debug("Cannot apply workload package", "error", err, "requeue-after", time.Now().Add(shortWait))
-		r.record.Event(workload, event.Warning(reasonCannotApplyWorkloadPackage, err))
-		workload.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyWorkloadPackage)))
-		return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, workload), errUpdateWorkloadStatus)
+	for _, o := range objs {
+		if err := r.applicator.Apply(ctx, r.client, o, resource.ControllersMustMatch()); err != nil {
+			log.Debug("Cannot apply workload translate", "error", err, "requeue-after", time.Now().Add(shortWait))
+			r.record.Event(workload, event.Warning(reasonCannotApplyWorkloadTranslation, err))
+			workload.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyWorkloadTranslation)))
+			return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, workload), errUpdateWorkloadStatus)
+		}
 	}
 
-	r.record.Event(workload, event.Normal(reasonPackageWorkload, "Successfully packaged workload"))
-	log.Debug("Successfully packaged workload as KubernetesApplication", "kind", workload.GetObjectKind().GroupVersionKind().String())
+	r.record.Event(workload, event.Normal(reasonTranslateWorkload, "Successfully translated workload"))
+	log.Debug("Successfully translated workload as KubernetesApplication", "kind", workload.GetObjectKind().GroupVersionKind().String())
 
 	workload.SetConditions(v1alpha1.ReconcileSuccess())
 	return reconcile.Result{RequeueAfter: longWait}, errors.Wrap(r.client.Status().Update(ctx, workload), errUpdateWorkloadStatus)

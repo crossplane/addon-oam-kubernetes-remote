@@ -51,9 +51,8 @@ const (
 const labelKey = "containerizedworkload.oam.crossplane.io"
 
 var (
-	deploymentKind             = reflect.TypeOf(appsv1.Deployment{}).Name()
-	deploymentAPIVersion       = appsv1.SchemeGroupVersion.String()
-	deploymentGroupVersionKind = appsv1.SchemeGroupVersion.WithKind(deploymentKind)
+	deploymentKind       = reflect.TypeOf(appsv1.Deployment{}).Name()
+	deploymentAPIVersion = appsv1.SchemeGroupVersion.String()
 )
 
 // SetupContainerizedWorkload adds a controller that reconciles ContainerizedWorkloads.
@@ -67,11 +66,15 @@ func SetupContainerizedWorkload(mgr ctrl.Manager, l logging.Logger) error {
 			workload.Kind(oamv1alpha2.ContainerizedWorkloadGroupVersionKind),
 			workload.WithLogger(l.WithValues("controller", name)),
 			workload.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-			workload.WithPacker(workload.NewPackagerWithWrappers(containerizedWorkloadPackager, workload.KubeAppWrapper)),
+			workload.WithTranslator(workload.NewObjectTranslatorWithWrappers(
+				containerizedWorkloadTranslator,
+				workload.ServiceInjector,
+				workload.KubeAppWrapper,
+			)),
 		))
 }
 
-func containerizedWorkloadPackager(ctx context.Context, w workload.Workload) (runtime.Object, error) {
+func containerizedWorkloadTranslator(ctx context.Context, w workload.Workload) ([]runtime.Object, error) {
 	cw, ok := w.(*oamv1alpha2.ContainerizedWorkload)
 	if !ok {
 		return nil, errors.New(errNotContainerizedWorkload)
@@ -264,5 +267,5 @@ func containerizedWorkloadPackager(ctx context.Context, w workload.Workload) (ru
 		d.Spec.Template.Spec.Containers = append(d.Spec.Template.Spec.Containers, kubernetesContainer)
 	}
 
-	return d, nil
+	return []runtime.Object{d}, nil
 }

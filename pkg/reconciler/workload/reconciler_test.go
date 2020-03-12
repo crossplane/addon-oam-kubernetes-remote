@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -93,7 +94,7 @@ func TestReconciler(t *testing.T) {
 								return errors.Errorf("MockStatusUpdate: -want, +got: %s", diff)
 							}
 
-							if diff := cmp.Diff(errors.Wrap(errBoom, errPackageWorkload).Error(), got.GetCondition(v1alpha1.TypeSynced).Message); diff != "" {
+							if diff := cmp.Diff(errors.Wrap(errBoom, errTranslateWorkload).Error(), got.GetCondition(v1alpha1.TypeSynced).Message); diff != "" {
 								return errors.Errorf("MockStatusUpdate: -want, +got: %s", diff)
 							}
 
@@ -103,7 +104,7 @@ func TestReconciler(t *testing.T) {
 					Scheme: fake.SchemeWith(&workloadfake.Workload{}),
 				},
 				w: Kind(fake.GVK(&workloadfake.Workload{})),
-				o: []ReconcilerOption{WithPacker(PackageFn(func(_ context.Context, _ Workload) (runtime.Object, error) {
+				o: []ReconcilerOption{WithTranslator(TranslateFn(func(_ context.Context, _ Workload) ([]runtime.Object, error) {
 					return nil, errBoom
 				}))},
 			},
@@ -122,7 +123,7 @@ func TestReconciler(t *testing.T) {
 								return errors.Errorf("MockStatusUpdate: -want, +got: %s", diff)
 							}
 
-							if diff := cmp.Diff(errors.Wrap(errBoom, errPackageWorkload).Error(), got.GetCondition(v1alpha1.TypeSynced).Message); diff != "" {
+							if diff := cmp.Diff(errors.Wrap(errBoom, errTranslateWorkload).Error(), got.GetCondition(v1alpha1.TypeSynced).Message); diff != "" {
 								return errors.Errorf("MockStatusUpdate: -want, +got: %s", diff)
 							}
 
@@ -133,9 +134,9 @@ func TestReconciler(t *testing.T) {
 				},
 				w: Kind(fake.GVK(&workloadfake.Workload{})),
 				o: []ReconcilerOption{
-					WithPacker(NewPackagerWithWrappers(func(_ context.Context, _ Workload) (runtime.Object, error) {
+					WithTranslator(NewObjectTranslatorWithWrappers(func(_ context.Context, _ Workload) ([]runtime.Object, error) {
 						return nil, nil
-					}, func(ctx context.Context, w Workload, obj runtime.Object) (runtime.Object, error) {
+					}, func(ctx context.Context, w Workload, obj []runtime.Object) ([]runtime.Object, error) {
 						return nil, errBoom
 					})),
 				},
@@ -155,7 +156,7 @@ func TestReconciler(t *testing.T) {
 								return errors.Errorf("MockStatusUpdate: -want, +got: %s", diff)
 							}
 
-							if diff := cmp.Diff(errors.Wrap(errBoom, errApplyWorkloadPackage).Error(), got.GetCondition(v1alpha1.TypeSynced).Message); diff != "" {
+							if diff := cmp.Diff(errors.Wrap(errBoom, errApplyWorkloadTranslation).Error(), got.GetCondition(v1alpha1.TypeSynced).Message); diff != "" {
 								return errors.Errorf("MockStatusUpdate: -want, +got: %s", diff)
 							}
 
@@ -166,6 +167,12 @@ func TestReconciler(t *testing.T) {
 				},
 				w: Kind(fake.GVK(&workloadfake.Workload{})),
 				o: []ReconcilerOption{
+					WithTranslator(TranslateFn(func(ctx context.Context, w Workload) ([]runtime.Object, error) {
+						return []runtime.Object{
+							&appsv1.Deployment{},
+							&appsv1.Deployment{},
+						}, nil
+					})),
 					WithApplicator(resource.ApplyFn(func(_ context.Context, _ client.Client, _ runtime.Object, _ ...resource.ApplyOption) error {
 						return errBoom
 					}))},

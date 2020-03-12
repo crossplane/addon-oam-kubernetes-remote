@@ -115,7 +115,7 @@ func TestContainerizedWorkloadPackager(t *testing.T) {
 	}
 
 	type want struct {
-		result runtime.Object
+		result []runtime.Object
 		err    error
 	}
 
@@ -136,27 +136,27 @@ func TestContainerizedWorkloadPackager(t *testing.T) {
 			args: args{
 				w: containerizedWorkload(),
 			},
-			want: want{result: deployment()},
+			want: want{result: []runtime.Object{deployment()}},
 		},
 		"SuccessfulOS": {
 			reason: "A ContainerizedWorkload should be successfully packaged into a deployment.",
 			args: args{
 				w: containerizedWorkload(cwWithOS("test")),
 			},
-			want: want{result: deployment(dmWithOS("test"))},
+			want: want{result: []runtime.Object{deployment(dmWithOS("test"))}},
 		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r, err := containerizedWorkloadPackager(context.TODO(), tc.args.w)
+			r, err := containerizedWorkloadTranslator(context.TODO(), tc.args.w)
 
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
-				t.Errorf("\nReason: %s\ncontainerizedWorkloadPackager(...): -want error, +got error:\n%s", tc.reason, diff)
+				t.Errorf("\nReason: %s\ncontainerizedWorkloadTranslator(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
 
 			if diff := cmp.Diff(tc.want.result, r); diff != "" {
-				t.Errorf("\nReason: %s\ncontainerizedWorkloadPackager(...): -want, +got:\n%s", tc.reason, diff)
+				t.Errorf("\nReason: %s\ncontainerizedWorkloadTranslator(...): -want, +got:\n%s", tc.reason, diff)
 			}
 		})
 	}
