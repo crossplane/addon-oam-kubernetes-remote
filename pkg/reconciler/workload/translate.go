@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	workloadv1alpha1 "github.com/crossplane/crossplane/apis/workload/v1alpha1"
 )
 
@@ -46,7 +45,7 @@ var (
 
 // A Translator is responsible for packaging workloads into other objects.
 type Translator interface {
-	Translate(context.Context, Workload) ([]runtime.Object, error)
+	Translate(context.Context, Workload) ([]Object, error)
 }
 
 // An ObjectTranslator is a concrete implementation of a Translator.
@@ -55,15 +54,15 @@ type ObjectTranslator struct {
 }
 
 // Translate a workload into other objects.
-func (p *ObjectTranslator) Translate(ctx context.Context, w Workload) ([]runtime.Object, error) {
+func (p *ObjectTranslator) Translate(ctx context.Context, w Workload) ([]Object, error) {
 	return p.TranslateFn(ctx, w)
 }
 
-// NewObjectTranslatorWithWrappers returns a Translator that packages and wraps
+// NewObjectTranslatorWithWrappers returns a Translator that translates and wraps
 // a workload.
 func NewObjectTranslatorWithWrappers(t TranslateFn, wp ...TranslationWrapper) Translator {
 	return &ObjectTranslator{
-		TranslateFn: func(ctx context.Context, w Workload) ([]runtime.Object, error) {
+		TranslateFn: func(ctx context.Context, w Workload) ([]Object, error) {
 			objs, err := t(ctx, w)
 			if err != nil {
 				return nil, err
@@ -78,36 +77,36 @@ func NewObjectTranslatorWithWrappers(t TranslateFn, wp ...TranslationWrapper) Tr
 	}
 }
 
-// A TranslateFn packages a workload into an object.
-type TranslateFn func(context.Context, Workload) ([]runtime.Object, error)
+// A TranslateFn translates a workload into an object.
+type TranslateFn func(context.Context, Workload) ([]Object, error)
 
 // Translate workload into object or objects with no wrappers.
-func (fn TranslateFn) Translate(ctx context.Context, w Workload) ([]runtime.Object, error) {
+func (fn TranslateFn) Translate(ctx context.Context, w Workload) ([]Object, error) {
 	return fn(ctx, w)
 }
 
 var _ Translator = TranslateFn(NoopTranslate)
 
 // NoopTranslate does not translate the workload and does not return error.
-func NoopTranslate(ctx context.Context, w Workload) ([]runtime.Object, error) {
+func NoopTranslate(ctx context.Context, w Workload) ([]Object, error) {
 	return nil, nil
 }
 
 // A TranslationWrapper wraps the output of a workload translation in another
 // object or adds addition object.
-type TranslationWrapper func(context.Context, Workload, []runtime.Object) ([]runtime.Object, error)
+type TranslationWrapper func(context.Context, Workload, []Object) ([]Object, error)
 
 var _ TranslationWrapper = NoopWrapper
 
 // NoopWrapper does not wrap the workload translation and does not return error.
-func NoopWrapper(ctx context.Context, w Workload, objs []runtime.Object) ([]runtime.Object, error) {
+func NoopWrapper(ctx context.Context, w Workload, objs []Object) ([]Object, error) {
 	return objs, nil
 }
 
 var _ TranslationWrapper = KubeAppWrapper
 
 // KubeAppWrapper wraps a set of translated objects in a KubernetesApplication.
-func KubeAppWrapper(ctx context.Context, w Workload, objs []runtime.Object) ([]runtime.Object, error) {
+func KubeAppWrapper(ctx context.Context, w Workload, objs []Object) ([]Object, error) {
 	if objs == nil {
 		return nil, nil
 	}
@@ -137,7 +136,6 @@ func KubeAppWrapper(ctx context.Context, w Workload, objs []runtime.Object) ([]r
 
 	// A workload's package must have the same name and namespace, and must be
 	// controlled by the same owner.
-	meta.AddOwnerReference(app, *metav1.NewControllerRef(w, w.GetObjectKind().GroupVersionKind()))
 	app.SetName(w.GetName())
 	app.SetNamespace(w.GetNamespace())
 
@@ -147,14 +145,14 @@ func KubeAppWrapper(ctx context.Context, w Workload, objs []runtime.Object) ([]r
 		},
 	}
 
-	return []runtime.Object{app}, nil
+	return []Object{app}, nil
 }
 
 var _ TranslationWrapper = ServiceInjector
 
 // ServiceInjector adds a Service object for every Deployment that has a
 // container with port defined into a workload translation.
-func ServiceInjector(ctx context.Context, w Workload, objs []runtime.Object) ([]runtime.Object, error) {
+func ServiceInjector(ctx context.Context, w Workload, objs []Object) ([]Object, error) {
 	if objs == nil {
 		return nil, nil
 	}

@@ -39,7 +39,7 @@ var (
 )
 
 // A Modifier is responsible for modifying or adding objects to a workload
-// package.
+// translation.
 type Modifier interface {
 	Modify(context.Context, runtime.Object, Trait) error
 }
@@ -49,22 +49,22 @@ type WorkloadModifier struct {
 	ModifyFn
 }
 
-// Modify modifies or adds an object in a workload package.
+// Modify modifies or adds an object in a workload translation.
 func (m *WorkloadModifier) Modify(ctx context.Context, obj runtime.Object, t Trait) error {
 	return m.ModifyFn(ctx, obj, t)
 }
 
-// NewWorkloadModifierWithAccessor is a modifier of a workload package that uses an accessor.
+// NewWorkloadModifierWithAccessor is a modifier of a workload translation that uses an accessor.
 func NewWorkloadModifierWithAccessor(m ModifyFn, a ModifyAccessor) Modifier {
 	return &WorkloadModifier{
 		ModifyFn: func(ctx context.Context, obj runtime.Object, t Trait) error { return a(ctx, obj, t, m) },
 	}
 }
 
-// A ModifyFn modifies or adds an object to a workload package.
+// A ModifyFn modifies or adds an object to a workload translation.
 type ModifyFn func(ctx context.Context, obj runtime.Object, t Trait) error
 
-// Modify object in workload package.
+// Modify object in workload translation.
 func (fn ModifyFn) Modify(ctx context.Context, obj runtime.Object, t Trait) error {
 	return fn(ctx, obj, t)
 }

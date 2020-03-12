@@ -26,7 +26,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -74,7 +73,7 @@ func SetupContainerizedWorkload(mgr ctrl.Manager, l logging.Logger) error {
 		))
 }
 
-func containerizedWorkloadTranslator(ctx context.Context, w workload.Workload) ([]runtime.Object, error) {
+func containerizedWorkloadTranslator(ctx context.Context, w workload.Workload) ([]workload.Object, error) {
 	cw, ok := w.(*oamv1alpha2.ContainerizedWorkload)
 	if !ok {
 		return nil, errors.New(errNotContainerizedWorkload)
@@ -136,6 +135,17 @@ func containerizedWorkloadTranslator(ctx context.Context, w workload.Workload) (
 					corev1.ResourceCPU:    container.Resources.CPU.Required,
 					corev1.ResourceMemory: container.Resources.Memory.Required,
 				},
+			}
+			for _, v := range container.Resources.Volumes {
+				mount := corev1.VolumeMount{
+					Name:      v.Name,
+					MountPath: v.MouthPath,
+				}
+				if v.AccessMode != nil && *v.AccessMode == oamv1alpha2.VolumeAccessModeRO {
+					mount.ReadOnly = true
+				}
+				kubernetesContainer.VolumeMounts = append(kubernetesContainer.VolumeMounts, mount)
+
 			}
 		}
 
@@ -251,21 +261,8 @@ func containerizedWorkloadTranslator(ctx context.Context, w workload.Workload) (
 			}
 		}
 
-		if container.Resources != nil {
-			for _, v := range container.Resources.Volumes {
-				mount := corev1.VolumeMount{
-					Name:      v.Name,
-					MountPath: v.MouthPath,
-				}
-				if v.AccessMode != nil && *v.AccessMode == oamv1alpha2.VolumeAccessModeRO {
-					mount.ReadOnly = true
-				}
-				kubernetesContainer.VolumeMounts = append(kubernetesContainer.VolumeMounts, mount)
-
-			}
-		}
 		d.Spec.Template.Spec.Containers = append(d.Spec.Template.Spec.Containers, kubernetesContainer)
 	}
 
-	return []runtime.Object{d}, nil
+	return []workload.Object{d}, nil
 }

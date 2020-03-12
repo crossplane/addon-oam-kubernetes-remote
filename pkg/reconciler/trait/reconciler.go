@@ -48,17 +48,17 @@ const (
 	errGetTrait               = "cannot get trait"
 	errUpdateTraitStatus      = "cannot update trait status"
 	errTraitModify            = "cannot apply trait modification"
-	errGetPackage             = "cannot get package for workload reference in trait"
-	errApplyTraitModification = "cannot apply trait modification to workload package"
+	errGetTranslation         = "cannot get translation for workload reference in trait"
+	errApplyTraitModification = "cannot apply trait modification to workload translation"
 )
 
 // Reconcile event reasons.
 const (
-	reasonTraitWait   = "WaitingForWorkloadPackage"
+	reasonTraitWait   = "WaitingForWorkloadTranslation"
 	reasonTraitModify = "PackageModified"
 
-	reasonCannotGetPackage        = "CannotGetReferencedWorkloadPackage"
-	reasonCannotModifyPackage     = "CannotModifyPackage"
+	reasonCannotGetTranslation    = "CannotGetReferencedWorkloadTranslation"
+	reasonCannotModifyTranslation = "CannotModifyTranslation"
 	reasonCannotApplyModification = "CannotApplyModification"
 )
 
@@ -79,7 +79,7 @@ func WithRecorder(er event.Recorder) ReconcilerOption {
 	}
 }
 
-// WithModifier specifies how the Reconciler should modify the workload package.
+// WithModifier specifies how the Reconciler should modify the workload translation.
 func WithModifier(m Modifier) ReconcilerOption {
 	return func(r *Reconciler) {
 		r.trait = m
@@ -87,7 +87,7 @@ func WithModifier(m Modifier) ReconcilerOption {
 }
 
 // WithApplicator specifies how the Reconciler should apply the workload
-// package modification.
+// translation modification.
 func WithApplicator(a resource.Applicator) ReconcilerOption {
 	return func(r *Reconciler) {
 		r.applicator = a
@@ -95,13 +95,13 @@ func WithApplicator(a resource.Applicator) ReconcilerOption {
 }
 
 // A Reconciler reconciles OAM traits by modifying the object that a workload
-// has been packaged into.
+// has been translated into.
 type Reconciler struct {
-	client     client.Client
-	newTrait   func() Trait
-	newPackage func() Object
-	trait      Modifier
-	applicator resource.Applicator
+	client         client.Client
+	newTrait       func() Trait
+	newTranslation func() Object
+	trait          Modifier
+	applicator     resource.Applicator
 
 	log    logging.Logger
 	record event.Recorder
@@ -124,29 +124,29 @@ type Trait interface {
 	WorkloadReferencer
 }
 
-// Object is a Kubernetes object.
+// An Object is a Kubernetes object.
 type Object interface {
 	metav1.Object
 	runtime.Object
 }
 
 // NewReconciler returns a Reconciler that reconciles OAM traits by fetching
-// their referenced workload's package and applying modifications.
-func NewReconciler(m ctrl.Manager, trait Kind, p Kind, o ...ReconcilerOption) *Reconciler {
+// their referenced workload's translation and applying modifications.
+func NewReconciler(m ctrl.Manager, trait Kind, trans Kind, o ...ReconcilerOption) *Reconciler {
 	nt := func() Trait {
 		return resource.MustCreateObject(schema.GroupVersionKind(trait), m.GetScheme()).(Trait)
 	}
 
-	np := func() Object {
-		return resource.MustCreateObject(schema.GroupVersionKind(p), m.GetScheme()).(Object)
+	nr := func() Object {
+		return resource.MustCreateObject(schema.GroupVersionKind(trans), m.GetScheme()).(Object)
 	}
 
 	r := &Reconciler{
-		client:     m.GetClient(),
-		newTrait:   nt,
-		newPackage: np,
-		trait:      ModifyFn(NoopModifier),
-		applicator: resource.ApplyFn(resource.Apply),
+		client:         m.GetClient(),
+		newTrait:       nt,
+		newTranslation: nr,
+		trait:          ModifyFn(NoopModifier),
+		applicator:     resource.ApplyFn(resource.Apply),
 
 		log:    logging.NewNopLogger(),
 		record: event.NewNopRecorder(),
@@ -175,41 +175,41 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 
 	log = log.WithValues("uid", trait.GetUID(), "version", trait.GetResourceVersion())
 
-	pack := r.newPackage()
-	err := r.client.Get(ctx, types.NamespacedName{Name: trait.GetWorkloadReference().Name, Namespace: trait.GetNamespace()}, pack)
+	translation := r.newTranslation()
+	err := r.client.Get(ctx, types.NamespacedName{Name: trait.GetWorkloadReference().Name, Namespace: trait.GetNamespace()}, translation)
 	if kerrors.IsNotFound(err) {
-		log.Debug("Waiting for referenced workload's package", "kind", trait.GetObjectKind().GroupVersionKind().String())
-		r.record.Event(trait, event.Normal(reasonTraitWait, "Waiting for workload package to exist"))
+		log.Debug("Waiting for referenced workload's translation", "kind", trait.GetObjectKind().GroupVersionKind().String())
+		r.record.Event(trait, event.Normal(reasonTraitWait, "Waiting for workload translation to exist"))
 		trait.SetConditions(v1alpha1.ReconcileSuccess())
 		return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, trait), errUpdateTraitStatus)
 	}
 	if err != nil {
-		log.Debug("Cannot get workload package", "error", err, "requeue-after", time.Now().Add(shortWait))
-		r.record.Event(trait, event.Warning(reasonCannotGetPackage, err))
-		trait.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGetPackage)))
+		log.Debug("Cannot get workload translation", "error", err, "requeue-after", time.Now().Add(shortWait))
+		r.record.Event(trait, event.Warning(reasonCannotGetTranslation, err))
+		trait.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGetTranslation)))
 		return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, trait), errUpdateTraitStatus)
 	}
 
-	if err := r.trait.Modify(ctx, pack, trait); err != nil {
-		log.Debug("Cannot modify workload package", "error", err, "requeue-after", time.Now().Add(shortWait))
-		r.record.Event(trait, event.Warning(reasonCannotModifyPackage, err))
+	if err := r.trait.Modify(ctx, translation, trait); err != nil {
+		log.Debug("Cannot modify workload translation", "error", err, "requeue-after", time.Now().Add(shortWait))
+		r.record.Event(trait, event.Warning(reasonCannotModifyTranslation, err))
 		trait.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errTraitModify)))
 		return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, trait), errUpdateTraitStatus)
 	}
 
-	// The trait's referenced workload should always be packaged in a
+	// The trait's referenced workload should always be translated in a
 	// KubernetesApplication that is controlled by the same owner. In the case
 	// where a KubernetesApplication already exists in the same namespace and
 	// with the same name as the workload before it is created, this wll guard
 	// against modifying it.
-	if err := r.applicator.Apply(ctx, r.client, pack, resource.ControllersMustMatch()); err != nil {
-		log.Debug("Cannot apply workload package", "error", err, "requeue-after", time.Now().Add(shortWait))
+	if err := r.applicator.Apply(ctx, r.client, translation, resource.ControllersMustMatch()); err != nil {
+		log.Debug("Cannot apply workload translation", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(trait, event.Warning(reasonCannotApplyModification, err))
 		trait.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyTraitModification)))
 		return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, trait), errUpdateTraitStatus)
 	}
 
-	r.record.Event(trait, event.Normal(reasonTraitModify, "Successfully modifed workload package"))
+	r.record.Event(trait, event.Normal(reasonTraitModify, "Successfully modifed workload translation"))
 	log.Debug("Successfully modified referenced workload's KubernetesApplication", "kind", trait.GetObjectKind().GroupVersionKind().String())
 
 	// trait.SetConditions(v1alpha1.ReconcileSuccess())

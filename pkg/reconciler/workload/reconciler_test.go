@@ -81,8 +81,8 @@ func TestReconciler(t *testing.T) {
 			},
 			want: want{result: reconcile.Result{}},
 		},
-		"PackageWorkloadError": {
-			reason: "Failure to package Workload into KubernetesApplication should be returned.",
+		"TranslateWorkloadError": {
+			reason: "Failure to translate Workload into KubernetesApplication should be returned.",
 			args: args{
 				m: &fake.Manager{
 					Client: &test.MockClient{
@@ -104,14 +104,14 @@ func TestReconciler(t *testing.T) {
 					Scheme: fake.SchemeWith(&workloadfake.Workload{}),
 				},
 				w: Kind(fake.GVK(&workloadfake.Workload{})),
-				o: []ReconcilerOption{WithTranslator(TranslateFn(func(_ context.Context, _ Workload) ([]runtime.Object, error) {
+				o: []ReconcilerOption{WithTranslator(TranslateFn(func(_ context.Context, _ Workload) ([]Object, error) {
 					return nil, errBoom
 				}))},
 			},
 			want: want{result: reconcile.Result{RequeueAfter: shortWait}},
 		},
 		"WrapWorkloadError": {
-			reason: "Failure to package Workload into KubernetesApplication should be returned.",
+			reason: "Failure to translate Workload into KubernetesApplication should be returned.",
 			args: args{
 				m: &fake.Manager{
 					Client: &test.MockClient{
@@ -134,9 +134,9 @@ func TestReconciler(t *testing.T) {
 				},
 				w: Kind(fake.GVK(&workloadfake.Workload{})),
 				o: []ReconcilerOption{
-					WithTranslator(NewObjectTranslatorWithWrappers(func(_ context.Context, _ Workload) ([]runtime.Object, error) {
+					WithTranslator(NewObjectTranslatorWithWrappers(func(_ context.Context, _ Workload) ([]Object, error) {
 						return nil, nil
-					}, func(ctx context.Context, w Workload, obj []runtime.Object) ([]runtime.Object, error) {
+					}, func(ctx context.Context, w Workload, obj []Object) ([]Object, error) {
 						return nil, errBoom
 					})),
 				},
@@ -144,7 +144,7 @@ func TestReconciler(t *testing.T) {
 			want: want{result: reconcile.Result{RequeueAfter: shortWait}},
 		},
 		"ApplyError": {
-			reason: "Failure to apply Workload package should be returned.",
+			reason: "Failure to apply Workload translate should be returned.",
 			args: args{
 				m: &fake.Manager{
 					Client: &test.MockClient{
@@ -167,8 +167,8 @@ func TestReconciler(t *testing.T) {
 				},
 				w: Kind(fake.GVK(&workloadfake.Workload{})),
 				o: []ReconcilerOption{
-					WithTranslator(TranslateFn(func(ctx context.Context, w Workload) ([]runtime.Object, error) {
-						return []runtime.Object{
+					WithTranslator(TranslateFn(func(ctx context.Context, w Workload) ([]Object, error) {
+						return []Object{
 							&appsv1.Deployment{},
 							&appsv1.Deployment{},
 						}, nil

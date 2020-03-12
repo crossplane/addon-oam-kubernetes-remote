@@ -31,6 +31,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 )
 
@@ -112,6 +113,12 @@ type Workload interface {
 	runtime.Object
 }
 
+// An Object is a Kubernetes object.
+type Object interface {
+	metav1.Object
+	runtime.Object
+}
+
 // NewReconciler returns a Reconciler that reconciles an OAM workload type by
 // packaging it into a KubernetesApplication.
 func NewReconciler(m ctrl.Manager, workload Kind, o ...ReconcilerOption) *Reconciler {
@@ -165,6 +172,9 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 			workload.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyWorkloadTranslation)))
 			return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, workload), errUpdateWorkloadStatus)
 		}
+
+		// A workload's translation must be controlled by the workload.
+		meta.AddOwnerReference(o, *metav1.NewControllerRef(workload, workload.GetObjectKind().GroupVersionKind()))
 	}
 
 	r.record.Event(workload, event.Normal(reasonTranslateWorkload, "Successfully translated workload"))

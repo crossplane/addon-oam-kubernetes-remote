@@ -26,7 +26,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -144,11 +143,11 @@ func service(mod ...serviceModifier) *corev1.Service {
 func TestKubeAppWrapper(t *testing.T) {
 	type args struct {
 		w Workload
-		o []runtime.Object
+		o []Object
 	}
 
 	type want struct {
-		result []runtime.Object
+		result []Object
 		err    error
 	}
 
@@ -174,9 +173,9 @@ func TestKubeAppWrapper(t *testing.T) {
 						UID:       types.UID(workloadUID),
 					},
 				},
-				o: []runtime.Object{&appsv1.Deployment{}},
+				o: []Object{&appsv1.Deployment{}},
 			},
-			want: want{result: []runtime.Object{&workloadv1alpha1.KubernetesApplication{
+			want: want{result: []Object{&workloadv1alpha1.KubernetesApplication{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      workloadName,
 					Namespace: workloadNamespace,
@@ -242,11 +241,11 @@ func TestKubeAppWrapper(t *testing.T) {
 func TestServiceInjector(t *testing.T) {
 	type args struct {
 		w Workload
-		o []runtime.Object
+		o []Object
 	}
 
 	type want struct {
-		result []runtime.Object
+		result []Object
 		err    error
 	}
 
@@ -272,9 +271,9 @@ func TestServiceInjector(t *testing.T) {
 						UID:       types.UID(workloadUID),
 					},
 				},
-				o: []runtime.Object{deployment(dmWithContainerPorts(3000))},
+				o: []Object{deployment(dmWithContainerPorts(3000))},
 			},
-			want: want{result: []runtime.Object{
+			want: want{result: []Object{
 				deployment(dmWithContainerPorts(3000)),
 				service(sWithContainerPort(3000)),
 			}},
@@ -289,9 +288,9 @@ func TestServiceInjector(t *testing.T) {
 						UID:       types.UID(workloadUID),
 					},
 				},
-				o: []runtime.Object{deployment(dmWithContainerPorts(3000, 3001))},
+				o: []Object{deployment(dmWithContainerPorts(3000, 3001))},
 			},
-			want: want{result: []runtime.Object{
+			want: want{result: []Object{
 				deployment(dmWithContainerPorts(3000, 3001)),
 				service(sWithContainerPort(3000)),
 			}},
@@ -306,12 +305,12 @@ func TestServiceInjector(t *testing.T) {
 						UID:       types.UID(workloadUID),
 					},
 				},
-				o: []runtime.Object{
+				o: []Object{
 					deployment(dmWithContainerPorts(3000)),
 					deployment(dmWithContainerPorts(3000)),
 				},
 			},
-			want: want{result: []runtime.Object{
+			want: want{result: []Object{
 				deployment(dmWithContainerPorts(3000)),
 				deployment(dmWithContainerPorts(3000)),
 				service(sWithContainerPort(3000)),
@@ -328,12 +327,12 @@ func TestServiceInjector(t *testing.T) {
 						UID:       types.UID(workloadUID),
 					},
 				},
-				o: []runtime.Object{
+				o: []Object{
 					deployment(dmWithContainerPorts(3000, 3001), dmWithContainerPorts(4000, 4001)),
 					deployment(dmWithContainerPorts(5000, 5001), dmWithContainerPorts(6000, 6001)),
 				},
 			},
-			want: want{result: []runtime.Object{
+			want: want{result: []Object{
 				deployment(dmWithContainerPorts(3000, 3001), dmWithContainerPorts(4000, 4001)),
 				deployment(dmWithContainerPorts(5000, 5001), dmWithContainerPorts(6000, 6001)),
 				service(sWithContainerPort(3000)),

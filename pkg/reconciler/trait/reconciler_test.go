@@ -82,7 +82,7 @@ func TestReconciler(t *testing.T) {
 			},
 			want: want{result: reconcile.Result{}},
 		},
-		"PackageNotFound": {
+		"TranslationNotFound": {
 			reason: "",
 			args: args{
 				m: &fake.Manager{
@@ -128,7 +128,7 @@ func TestReconciler(t *testing.T) {
 								return errors.Errorf("MockStatusUpdate: -want, +got: %s", diff)
 							}
 
-							if diff := cmp.Diff(errors.Wrap(errBoom, errGetPackage).Error(), got.GetCondition(v1alpha1.TypeSynced).Message); diff != "" {
+							if diff := cmp.Diff(errors.Wrap(errBoom, errGetTranslation).Error(), got.GetCondition(v1alpha1.TypeSynced).Message); diff != "" {
 								return errors.Errorf("MockStatusUpdate: -want, +got: %s", diff)
 							}
 

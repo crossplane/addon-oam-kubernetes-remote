@@ -25,7 +25,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -49,6 +48,12 @@ func dmWithOS(os string) deploymentModifier {
 			d.Spec.Template.Spec.NodeSelector = map[string]string{}
 		}
 		d.Spec.Template.Spec.NodeSelector["beta.kubernetes.io/os"] = os
+	}
+}
+
+func dmWithContainer(c corev1.Container) deploymentModifier {
+	return func(d *appsv1.Deployment) {
+		d.Spec.Template.Spec.Containers = append(d.Spec.Template.Spec.Containers, c)
 	}
 }
 
@@ -93,6 +98,12 @@ func cwWithOS(os string) cwModifier {
 	}
 }
 
+func cwWithContainer(c oamv1alpha2.Container) cwModifier {
+	return func(cw *oamv1alpha2.ContainerizedWorkload) {
+		cw.Spec.Containers = append(cw.Spec.Containers, c)
+	}
+}
+
 func containerizedWorkload(mod ...cwModifier) *oamv1alpha2.ContainerizedWorkload {
 	cw := &oamv1alpha2.ContainerizedWorkload{
 		ObjectMeta: metav1.ObjectMeta{
@@ -109,13 +120,13 @@ func containerizedWorkload(mod ...cwModifier) *oamv1alpha2.ContainerizedWorkload
 	return cw
 }
 
-func TestContainerizedWorkloadPackager(t *testing.T) {
+func TestContainerizedWorkloadTranslator(t *testing.T) {
 	type args struct {
 		w workload.Workload
 	}
 
 	type want struct {
-		result []runtime.Object
+		result []workload.Object
 		err    error
 	}
 
@@ -125,25 +136,78 @@ func TestContainerizedWorkloadPackager(t *testing.T) {
 		want   want
 	}{
 		"ErrorWorkloadNotContainerizedWorkload": {
-			reason: "Workload passed to packager that is not ContainerizedWorkload should return error.",
+			reason: "Workload passed to translator that is not ContainerizedWorkload should return error.",
 			args: args{
 				w: &workloadfake.Workload{},
 			},
 			want: want{err: errors.New(errNotContainerizedWorkload)},
 		},
 		"SuccessfulEmpty": {
-			reason: "A ContainerizedWorkload should be successfully packaged into a deployment.",
+			reason: "A ContainerizedWorkload should be successfully translated into a deployment.",
 			args: args{
 				w: containerizedWorkload(),
 			},
-			want: want{result: []runtime.Object{deployment()}},
+			want: want{result: []workload.Object{deployment()}},
 		},
 		"SuccessfulOS": {
-			reason: "A ContainerizedWorkload should be successfully packaged into a deployment.",
+			reason: "A ContainerizedWorkload should be successfully translateddinto a deployment.",
 			args: args{
 				w: containerizedWorkload(cwWithOS("test")),
 			},
-			want: want{result: []runtime.Object{deployment(dmWithOS("test"))}},
+			want: want{result: []workload.Object{deployment(dmWithOS("test"))}},
+		},
+		"SuccessfulContainers": {
+			reason: "A ContainerizedWorkload should be successfully translated into a deployment.",
+			args: args{
+				w: containerizedWorkload(cwWithContainer(oamv1alpha2.Container{
+					Name:      "cool-container",
+					Image:     "cool/image:latest",
+					Command:   []string{"run"},
+					Arguments: []string{"--coolflag"},
+					Ports: []oamv1alpha2.ContainerPort{
+						{
+							Name: "cool-port",
+							Port: 8080,
+						},
+					},
+					Resources: &oamv1alpha2.ContainerResources{
+						Volumes: []oamv1alpha2.VolumeResource{
+							{
+								Name:      "cool-volume",
+								MouthPath: "/my/cool/path",
+							},
+						},
+					},
+				})),
+			},
+			want: want{result: []workload.Object{deployment(dmWithContainer(corev1.Container{
+				Name:    "cool-container",
+				Image:   "cool/image:latest",
+				Command: []string{"run"},
+				Args:    []string{"--coolflag"},
+				Ports: []corev1.ContainerPort{
+					{
+						Name:          "cool-port",
+						ContainerPort: 8080,
+					},
+				},
+				// CPU and Memory get initialized because we set them if any
+				// part of OAM Container.Resources is present. They are not
+				// pointer values, so we cannot tell if they were omitted or
+				// explicitly set to zero-value.
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						"cpu":    {},
+						"memory": {},
+					},
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						Name:      "cool-volume",
+						MountPath: "/my/cool/path",
+					},
+				},
+			}))}},
 		},
 	}
 
