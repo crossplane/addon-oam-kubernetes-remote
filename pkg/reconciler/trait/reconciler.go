@@ -18,6 +18,8 @@ package trait
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -176,6 +178,12 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 	log = log.WithValues("uid", trait.GetUID(), "version", trait.GetResourceVersion())
 
 	translation := r.newTranslation()
+
+	// TODO(hasheddan): we make the assumption here that the workload
+	// translation object that we are modifying has the same name as the
+	// workload itself. This would not work if a translation produced multiple
+	// objects of the same kind as they would not be permitted to have the same
+	// name.
 	err := r.client.Get(ctx, types.NamespacedName{Name: trait.GetWorkloadReference().Name, Namespace: trait.GetNamespace()}, translation)
 	if kerrors.IsNotFound(err) {
 		log.Debug("Waiting for referenced workload's translation", "kind", trait.GetObjectKind().GroupVersionKind().String())
@@ -197,11 +205,10 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 		return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, trait), errUpdateTraitStatus)
 	}
 
-	// The trait's referenced workload should always be translated in a
-	// KubernetesApplication that is controlled by the same owner. In the case
-	// where a KubernetesApplication already exists in the same namespace and
-	// with the same name as the workload before it is created, this wll guard
-	// against modifying it.
+	// The trait's referenced workload should always be translated in an
+	// object(s) that is controlled by the workload. In the case where an
+	// object(s) already exists in the same namespace and with the same name
+	// before it is created, this wll guard against modifying it.
 	if err := r.applicator.Apply(ctx, r.client, translation, resource.ControllersMustMatch()); err != nil {
 		log.Debug("Cannot apply workload translation", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(trait, event.Warning(reasonCannotApplyModification, err))
@@ -210,8 +217,16 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 	}
 
 	r.record.Event(trait, event.Normal(reasonTraitModify, "Successfully modifed workload translation"))
-	log.Debug("Successfully modified referenced workload's KubernetesApplication", "kind", trait.GetObjectKind().GroupVersionKind().String())
+	log.Debug("Successfully modified referenced workload", "kind", trait.GetObjectKind().GroupVersionKind().String())
 
-	// trait.SetConditions(v1alpha1.ReconcileSuccess())
+	trait.SetConditions(v1alpha1.ReconcileSuccess())
 	return reconcile.Result{RequeueAfter: longWait}, errors.Wrap(r.client.Status().Update(ctx, trait), errUpdateTraitStatus)
+}
+
+func workloadGroupKind(w oamv1alpha2.WorkloadReference) string {
+	gv := strings.Split(w.APIVersion, "/")
+	if len(gv) != 2 {
+		return strings.ToLower(w.Kind)
+	}
+	return strings.ToLower(fmt.Sprintf("%s.%s", w.Kind, gv[0]))
 }

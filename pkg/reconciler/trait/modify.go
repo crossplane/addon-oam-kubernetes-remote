@@ -88,7 +88,7 @@ func NoopModifyAccessor(ctx context.Context, obj runtime.Object, t Trait, m Modi
 
 var _ ModifyAccessor = DeploymentFromKubeAppAccessor
 
-// DeploymentFromKubeAppAccessor gets a deployment from a KubernetesApplication.
+// DeploymentFromKubeAppAccessor gets deployments from a KubernetesApplication.
 func DeploymentFromKubeAppAccessor(ctx context.Context, obj runtime.Object, t Trait, m ModifyFn) error {
 	a, ok := obj.(*workloadv1alpha1.KubernetesApplication)
 	if !ok {
@@ -96,7 +96,7 @@ func DeploymentFromKubeAppAccessor(ctx context.Context, obj runtime.Object, t Tr
 	}
 
 	for i, r := range a.Spec.ResourceTemplates {
-		if r.Name == t.GetWorkloadReference().Name && r.Spec.Template.GroupVersionKind().Kind == deploymentKind {
+		if r.Spec.Template.GroupVersionKind().Kind == deploymentKind {
 			d := &appsv1.Deployment{}
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.Spec.Template.UnstructuredContent(), d); err != nil {
 				return err

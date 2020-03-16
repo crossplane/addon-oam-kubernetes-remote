@@ -29,6 +29,7 @@ import (
 // Workload is a mock that implements Workload interface.
 type Workload struct {
 	metav1.ObjectMeta
+	runtime.Object
 	v1alpha1.ConditionedStatus
 }
 

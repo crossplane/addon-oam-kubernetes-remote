@@ -18,7 +18,9 @@ package workload
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -42,6 +44,8 @@ var (
 	serviceKind       = reflect.TypeOf(corev1.Service{}).Name()
 	serviceAPIVersion = corev1.SchemeGroupVersion.String()
 )
+
+var labelKey = "workload.oam.crossplane.io"
 
 // A Translator is responsible for packaging workloads into other objects.
 type Translator interface {
@@ -121,7 +125,7 @@ func KubeAppWrapper(ctx context.Context, w Workload, objs []Object) ([]Object, e
 
 		kart := workloadv1alpha1.KubernetesApplicationResourceTemplate{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: w.GetName(),
+				Name: fmt.Sprintf("%s-%s", o.GetName(), strings.ToLower(o.GetObjectKind().GroupVersionKind().Kind)),
 				Labels: map[string]string{
 					labelKey: string(w.GetUID()),
 				},

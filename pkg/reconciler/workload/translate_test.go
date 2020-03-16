@@ -18,6 +18,7 @@ package workload
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -66,6 +67,12 @@ func dmWithContainerPorts(ports ...int32) deploymentModifier {
 			Name:  containerName,
 			Ports: p,
 		})
+	}
+}
+
+func dmWithReplicas(r *int32) deploymentModifier {
+	return func(d *appsv1.Deployment) {
+		d.Spec.Replicas = r
 	}
 }
 
@@ -173,20 +180,19 @@ func TestKubeAppWrapper(t *testing.T) {
 						UID:       types.UID(workloadUID),
 					},
 				},
-				o: []Object{&appsv1.Deployment{}},
+				o: []Object{&appsv1.Deployment{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       deploymentKind,
+						APIVersion: deploymentAPIVersion,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "cool-containers",
+					},
+				}},
 			},
 			want: want{result: []Object{&workloadv1alpha1.KubernetesApplication{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      workloadName,
-					Namespace: workloadNamespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							Name:               workloadName,
-							UID:                types.UID(workloadUID),
-							Controller:         &trueVal,
-							BlockOwnerDeletion: &trueVal,
-						},
-					},
+					Name: workloadName,
 				},
 				Spec: workloadv1alpha1.KubernetesApplicationSpec{
 					ResourceSelector: &metav1.LabelSelector{
@@ -197,13 +203,18 @@ func TestKubeAppWrapper(t *testing.T) {
 					ResourceTemplates: []workloadv1alpha1.KubernetesApplicationResourceTemplate{
 						{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:   workloadName,
+								Name:   fmt.Sprintf("%s-%s", "cool-containers", "deployment"),
 								Labels: map[string]string{labelKey: workloadUID},
 							},
 							Spec: workloadv1alpha1.KubernetesApplicationResourceSpec{
 								Template: &unstructured.Unstructured{
 									Object: map[string]interface{}{
-										"metadata": map[string]interface{}{"creationTimestamp": nil},
+										"apiVersion": string("apps/v1"),
+										"kind":       string("Deployment"),
+										"metadata": map[string]interface{}{
+											"creationTimestamp": nil,
+											"name":              "cool-containers",
+										},
 										"spec": map[string]interface{}{
 											"selector": nil,
 											"strategy": map[string]interface{}{},

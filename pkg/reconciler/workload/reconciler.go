@@ -18,6 +18,7 @@ package workload
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -56,8 +57,6 @@ const (
 	reasonCannotTranslateWorkload        = "CannotTranslateWorkload"
 	reasonCannotApplyWorkloadTranslation = "CannotApplyWorkloadTranslation"
 )
-
-const labelKey = "workload.oam.crossplane.io"
 
 // A ReconcilerOption configures a Reconciler.
 type ReconcilerOption func(*Reconciler)
@@ -172,7 +171,23 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 		// All top-level objects must be in the same namespace as the workload.
 		o.SetNamespace(workload.GetNamespace())
 
-		if err := r.applicator.Apply(ctx, r.client, o, resource.ControllersMustMatch()); err != nil {
+		// All top-level objects must have the same name as the workload.
+		// TODO(hasheddan): this restriction means that you can only have one
+		// top-level object of a given kind per workload translation. In the
+		// future, it would be ideal to allow for multiple instances of a single
+		// object kind per workload translation. At that time, this naming
+		// restriction should be removed, and the trait reconciler should list
+		// objects by labels added below.
+		o.SetName(workload.GetName())
+
+		// All top-level objects must have the workload label so that they can
+		// be listed by traits.
+		// TODO(hasheddan): currently the trait controller only gets one object
+		// of the given kind that has the same name as its referenced workload,
+		// so this label is not being used.
+		meta.AddLabels(o, map[string]string{lowerGroupKind(workload.GetObjectKind()): string(workload.GetUID())})
+
+		if err := r.applicator.Apply(ctx, r.client, o); err != nil {
 			log.Debug("Cannot apply workload translation", "error", err, "requeue-after", time.Now().Add(shortWait))
 			r.record.Event(workload, event.Warning(reasonCannotApplyWorkloadTranslation, err))
 			workload.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyWorkloadTranslation)))
@@ -185,4 +200,8 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 
 	workload.SetConditions(v1alpha1.ReconcileSuccess())
 	return reconcile.Result{RequeueAfter: longWait}, errors.Wrap(r.client.Status().Update(ctx, workload), errUpdateWorkloadStatus)
+}
+
+func lowerGroupKind(gk schema.ObjectKind) string {
+	return strings.ToLower(gk.GroupVersionKind().GroupKind().String())
 }
