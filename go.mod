@@ -6,6 +6,8 @@ require (
 	github.com/crossplane/crossplane v0.8.0-rc.0.20200306224957-b724d2eba282
 	github.com/crossplane/crossplane-runtime v0.5.1-0.20200304190937-e98175fed978
 	github.com/google/go-cmp v0.3.1
+	github.com/imdario/mergo v0.3.7
+	github.com/kubernetes/client-go v11.0.0+incompatible
 	github.com/pkg/errors v0.8.1
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	k8s.io/api v0.17.3

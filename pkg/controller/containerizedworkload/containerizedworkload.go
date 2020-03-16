@@ -31,6 +31,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	oamv1alpha2 "github.com/crossplane/crossplane/apis/oam/v1alpha2"
 
 	"github.com/crossplane/addon-oam-kubernetes-remote/pkg/reconciler/workload"
@@ -65,6 +66,7 @@ func SetupContainerizedWorkload(mgr ctrl.Manager, l logging.Logger) error {
 			workload.Kind(oamv1alpha2.ContainerizedWorkloadGroupVersionKind),
 			workload.WithLogger(l.WithValues("controller", name)),
 			workload.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
+			workload.WithApplicator(resource.ApplyFn(workload.KubeAppApply)),
 			workload.WithTranslator(workload.NewObjectTranslatorWithWrappers(
 				containerizedWorkloadTranslator,
 				workload.ServiceInjector,
