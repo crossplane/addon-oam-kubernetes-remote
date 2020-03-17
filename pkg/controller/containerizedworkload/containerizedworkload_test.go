@@ -213,7 +213,7 @@ func TestContainerizedWorkloadTranslator(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r, err := containerizedWorkloadTranslator(context.TODO(), tc.args.w)
+			r, err := containerizedWorkloadTranslator(context.Background(), tc.args.w)
 
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\nReason: %s\ncontainerizedWorkloadTranslator(...): -want error, +got error:\n%s", tc.reason, diff)

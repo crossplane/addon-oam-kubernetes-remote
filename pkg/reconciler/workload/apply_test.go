@@ -19,22 +19,19 @@ package workload
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	oamv1alpha2 "github.com/crossplane/crossplane/apis/oam/v1alpha2"
 	workloadv1alpha1 "github.com/crossplane/crossplane/apis/workload/v1alpha1"
 )
 
@@ -54,7 +51,8 @@ func kaWithTemplate(name string, o runtime.Object) kubeAppModifier {
 		u, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
 		a.Spec.ResourceTemplates = append(a.Spec.ResourceTemplates, workloadv1alpha1.KubernetesApplicationResourceTemplate{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
+				Name:              name,
+				CreationTimestamp: metav1.NewTime(time.Date(0, 0, 0, 0, 0, 0, 0, time.Local)),
 			},
 			Spec: workloadv1alpha1.KubernetesApplicationResourceSpec{
 				Template: &unstructured.Unstructured{Object: u},
@@ -77,16 +75,13 @@ func kubeApp(mod ...kubeAppModifier) *workloadv1alpha1.KubernetesApplication {
 	return a
 }
 
-var _ resource.Applicator = resource.ApplyFn(KubeAppApply)
+var _ resource.ApplyOption = KubeAppApplyOption()
 
 func TestKubeAppApply(t *testing.T) {
-	errBoom := errors.New("boom")
-
 	type args struct {
 		ctx context.Context
-		c   client.Client
-		o   runtime.Object
-		ao  []resource.ApplyOption
+		c   runtime.Object
+		d   runtime.Object
 	}
 
 	type want struct {
@@ -102,114 +97,19 @@ func TestKubeAppApply(t *testing.T) {
 		"NotAKubernetesApplication": {
 			reason: "An error should be returned if the object is not a KubernetesApplication",
 			args: args{
-				c: &test.MockClient{MockGet: test.NewMockGetFn(errBoom)},
-				o: &corev1.Namespace{},
+				c: &corev1.Namespace{},
+				d: &corev1.Namespace{},
 			},
 			want: want{
 				o:   &corev1.Namespace{},
-				err: errors.New("object is not a KubernetesApplication"),
-			},
-		},
-		"GetError": {
-			reason: "An error should be returned if we can't get the KubernetesApplication",
-			args: args{
-				c: &test.MockClient{MockGet: test.NewMockGetFn(errBoom)},
-				o: kubeApp(),
-			},
-			want: want{
-				o:   kubeApp(),
-				err: errors.Wrap(errBoom, errGetKubeApp),
-			},
-		},
-		"CreateError": {
-			reason: "No error should be returned if we successfully create a new KubernetesApplication",
-			args: args{
-				c: &test.MockClient{
-					MockGet:    test.NewMockGetFn(kerrors.NewNotFound(schema.GroupResource{}, "")),
-					MockCreate: test.NewMockCreateFn(errBoom),
-				},
-				o: kubeApp(),
-			},
-			want: want{
-				o:   kubeApp(),
-				err: errors.Wrap(errBoom, errCreateKubeApp),
-			},
-		},
-		"ControllerMismatch": {
-			reason: "An error should be returned if controllers must match, but don't",
-			args: args{
-				c: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(o runtime.Object) error {
-					*(o.(*workloadv1alpha1.KubernetesApplication)) = *kubeApp(kaWithController(&oamv1alpha2.ContainerizedWorkload{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "controller",
-						},
-					}, oamv1alpha2.ContainerizedWorkloadGroupVersionKind))
-					return nil
-				})},
-				o:  kubeApp(),
-				ao: []resource.ApplyOption{resource.ControllersMustMatch()},
-			},
-			want: want{
-				o: kubeApp(kaWithController(&oamv1alpha2.ContainerizedWorkload{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "controller",
-					},
-				}, oamv1alpha2.ContainerizedWorkloadGroupVersionKind)),
-				err: errors.New(errDiffController),
-			},
-		},
-		"PatchError": {
-			reason: "An error should be returned if we can't patch the KubernetesApplication",
-			args: args{
-				c: &test.MockClient{
-					MockGet:   test.NewMockGetFn(nil),
-					MockPatch: test.NewMockPatchFn(errBoom),
-				},
-				o: kubeApp(),
-			},
-			want: want{
-				o:   kubeApp(),
-				err: errors.Wrap(errBoom, errPatchKubeApp),
-			},
-		},
-		"Created": {
-			reason: "No error should be returned if we successfully create a new object",
-			args: args{
-				c: &test.MockClient{
-					MockGet: test.NewMockGetFn(kerrors.NewNotFound(schema.GroupResource{}, "")),
-					MockCreate: test.NewMockCreateFn(nil, func(o runtime.Object) error {
-						*(o.(*workloadv1alpha1.KubernetesApplication)) = *kubeApp()
-						return nil
-					}),
-				},
-				o: kubeApp(),
-			},
-			want: want{
-				o: kubeApp(),
+				err: errors.New(errNotKubeApp),
 			},
 		},
 		"PatchedNoOverwrite": {
 			reason: "If existing and desired have the same name and kind of a template, non-array fields in templates should not be overwritten in patch",
 			args: args{
-				c: &test.MockClient{
-					MockGet: test.NewMockGetFn(nil, func(o runtime.Object) error {
-						*(o.(*workloadv1alpha1.KubernetesApplication)) = *kubeApp(kaWithTemplate("cool-temp", deployment(dmWithReplicas(&replicas))))
-						return nil
-					}),
-					MockPatch: test.NewMockPatchFn(nil, func(o runtime.Object) error {
-						a, ok := o.(*workloadv1alpha1.KubernetesApplication)
-						if !ok {
-							return errors.Errorf("Not KubernetesApplication: %+v\n", o)
-						}
-						d := &appsv1.Deployment{}
-						_ = runtime.DefaultUnstructuredConverter.FromUnstructured(a.Spec.ResourceTemplates[0].Spec.Template.UnstructuredContent(), d)
-						if *d.Spec.Replicas != replicas {
-							return errors.Errorf("Deployment missing replicas: %+v\n", d)
-						}
-						return nil
-					}),
-				},
-				o: kubeApp(kaWithTemplate("cool-temp", deployment())),
+				c: kubeApp(kaWithTemplate("cool-temp", deployment(dmWithReplicas(&replicas)))),
+				d: kubeApp(kaWithTemplate("cool-temp", deployment())),
 			},
 			want: want{
 				o: kubeApp(kaWithTemplate("cool-temp", deployment(dmWithReplicas(&replicas)))),
@@ -218,17 +118,8 @@ func TestKubeAppApply(t *testing.T) {
 		"PatchedOverwrite": {
 			reason: "If existing and desired have different template names, the existing template should be overwritten by the desired",
 			args: args{
-				c: &test.MockClient{
-					MockGet: test.NewMockGetFn(nil, func(o runtime.Object) error {
-						*(o.(*workloadv1alpha1.KubernetesApplication)) = *kubeApp(kaWithTemplate("nice-temp", deployment()))
-						return nil
-					}),
-					MockPatch: test.NewMockPatchFn(nil, func(o runtime.Object) error {
-						*(o.(*workloadv1alpha1.KubernetesApplication)) = *kubeApp(kaWithTemplate("cool-temp", deployment()))
-						return nil
-					}),
-				},
-				o: kubeApp(kaWithTemplate("cool-temp", deployment())),
+				c: kubeApp(kaWithTemplate("nice-temp", deployment())),
+				d: kubeApp(kaWithTemplate("cool-temp", deployment())),
 			},
 			want: want{
 				o: kubeApp(kaWithTemplate("cool-temp", deployment())),
@@ -237,17 +128,8 @@ func TestKubeAppApply(t *testing.T) {
 		"PatchedPartialOverwrite": {
 			reason: "If existing and desired have the same name and kind of a template, array fields in templates should be overwritten in patch",
 			args: args{
-				c: &test.MockClient{
-					MockGet: test.NewMockGetFn(nil, func(o runtime.Object) error {
-						*(o.(*workloadv1alpha1.KubernetesApplication)) = *kubeApp(kaWithTemplate("cool-temp", deployment(dmWithReplicas(&replicas), dmWithContainerPorts(replicas))))
-						return nil
-					}),
-					MockPatch: test.NewMockPatchFn(nil, func(o runtime.Object) error {
-						*(o.(*workloadv1alpha1.KubernetesApplication)) = *kubeApp(kaWithTemplate("cool-temp", deployment(dmWithReplicas(&replicas))))
-						return nil
-					}),
-				},
-				o: kubeApp(kaWithTemplate("cool-temp", deployment(dmWithReplicas(&replicas)))),
+				c: kubeApp(kaWithTemplate("cool-temp", deployment(dmWithReplicas(&replicas), dmWithContainerPorts(replicas)))),
+				d: kubeApp(kaWithTemplate("cool-temp", deployment(dmWithReplicas(&replicas)))),
 			},
 			want: want{
 				o: kubeApp(kaWithTemplate("cool-temp", deployment(dmWithReplicas(&replicas)))),
@@ -257,82 +139,13 @@ func TestKubeAppApply(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			err := KubeAppApply(tc.args.ctx, tc.args.c, tc.args.o, tc.args.ao...)
+			err := KubeAppApplyOption()(context.Background(), tc.args.c, tc.args.d)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nKubeAppApply(...): -want error, +got error\n%s\n", tc.reason, diff)
 			}
-			if diff := cmp.Diff(tc.want.o, tc.args.o); diff != "" {
+			if diff := cmp.Diff(tc.want.o, tc.args.d); diff != "" {
 				t.Errorf("\n%s\nKubeAppApply(...): -want, +got\n%s\n", tc.reason, diff)
 			}
 		})
 	}
-}
-
-var dWithReplicas = &appsv1.Deployment{
-	TypeMeta: metav1.TypeMeta{
-		Kind:       deploymentKind,
-		APIVersion: deploymentAPIVersion,
-	},
-	ObjectMeta: metav1.ObjectMeta{
-		Name: "cool-name",
-	},
-	Spec: appsv1.DeploymentSpec{
-		Replicas: &replicas,
-		Selector: &metav1.LabelSelector{
-			MatchLabels: map[string]string{
-				labelKey: "cool-val",
-			},
-		},
-		Template: corev1.PodTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{
-					labelKey: "cool-val",
-				},
-			},
-			// Spec: corev1.PodSpec{
-			// 	Containers: []corev1.Container{
-			// 		{
-			// 			Name:  "cool-container",
-			// 			Image: "mycool/image",
-			// 		},
-			// 	},
-			// },
-		},
-	},
-}
-
-var dNoReplicas = &appsv1.Deployment{
-	TypeMeta: metav1.TypeMeta{
-		Kind:       deploymentKind,
-		APIVersion: deploymentAPIVersion,
-	},
-	ObjectMeta: metav1.ObjectMeta{
-		Name: "cool-name",
-	},
-	Spec: appsv1.DeploymentSpec{
-		Selector: &metav1.LabelSelector{
-			MatchLabels: map[string]string{
-				labelKey: "cool-val",
-			},
-		},
-		Template: corev1.PodTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{
-					labelKey: "cool-val",
-				},
-			},
-			// Spec: corev1.PodSpec{
-			// 	Containers: []corev1.Container{
-			// 		{
-			// 			Name: "cool-container",
-			// 		},
-			// 	},
-			// },
-		},
-	},
-}
-
-func toUn(o runtime.Object) *unstructured.Unstructured {
-	u, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
-	return &unstructured.Unstructured{Object: u}
 }

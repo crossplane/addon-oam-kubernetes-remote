@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	appsv1 "k8s.io/api/apps/v1"
@@ -83,7 +84,8 @@ func deployment(mod ...deploymentModifier) *appsv1.Deployment {
 			APIVersion: deploymentAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: workloadName,
+			Name:              workloadName,
+			CreationTimestamp: metav1.NewTime(time.Date(0, 0, 0, 0, 0, 0, 0, time.Local)),
 		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
@@ -93,9 +95,13 @@ func deployment(mod ...deploymentModifier) *appsv1.Deployment {
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
+					CreationTimestamp: metav1.NewTime(time.Date(0, 0, 0, 0, 0, 0, 0, time.Local)),
 					Labels: map[string]string{
 						labelKey: workloadUID,
 					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{},
 				},
 			},
 		},
@@ -236,7 +242,7 @@ func TestKubeAppWrapper(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r, err := KubeAppWrapper(context.TODO(), tc.args.w, tc.args.o)
+			r, err := KubeAppWrapper(context.Background(), tc.args.w, tc.args.o)
 
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\nReason: %s\nKubeAppWrapper(...): -want error, +got error:\n%s", tc.reason, diff)
@@ -290,7 +296,7 @@ func TestServiceInjector(t *testing.T) {
 			}},
 		},
 		"SuccessfulInjectService_1D_1C_2P": {
-			reason: "A Deployment with a port(s) should have a Service injected for first defined port on each container.",
+			reason: "A Deployment with a port(s) should have a Service injected for first defined port on the first container.",
 			args: args{
 				w: &workloadfake.Workload{
 					ObjectMeta: metav1.ObjectMeta{
@@ -307,7 +313,7 @@ func TestServiceInjector(t *testing.T) {
 			}},
 		},
 		"SuccessfulInjectService_2D_1C_1P": {
-			reason: "Each Deployment with a port(s) should have a Service injected for first defined port on each container.",
+			reason: "The first Deployment with a port(s) should have a Service injected for first defined port on the first container.",
 			args: args{
 				w: &workloadfake.Workload{
 					ObjectMeta: metav1.ObjectMeta{
@@ -317,19 +323,18 @@ func TestServiceInjector(t *testing.T) {
 					},
 				},
 				o: []Object{
-					deployment(dmWithContainerPorts(3000)),
+					deployment(dmWithContainerPorts(4000)),
 					deployment(dmWithContainerPorts(3000)),
 				},
 			},
 			want: want{result: []Object{
+				deployment(dmWithContainerPorts(4000)),
 				deployment(dmWithContainerPorts(3000)),
-				deployment(dmWithContainerPorts(3000)),
-				service(sWithContainerPort(3000)),
-				service(sWithContainerPort(3000)),
+				service(sWithContainerPort(4000)),
 			}},
 		},
 		"SuccessfulInjectService_2D_2C_2P": {
-			reason: "Each Deployment with a port(s) should have a Service injected for first defined port on each container.",
+			reason: "The first Deployment with a port(s) should have a Service injected for first defined port on the first container.",
 			args: args{
 				w: &workloadfake.Workload{
 					ObjectMeta: metav1.ObjectMeta{
@@ -347,16 +352,13 @@ func TestServiceInjector(t *testing.T) {
 				deployment(dmWithContainerPorts(3000, 3001), dmWithContainerPorts(4000, 4001)),
 				deployment(dmWithContainerPorts(5000, 5001), dmWithContainerPorts(6000, 6001)),
 				service(sWithContainerPort(3000)),
-				service(sWithContainerPort(4000)),
-				service(sWithContainerPort(5000)),
-				service(sWithContainerPort(6000)),
 			}},
 		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r, err := ServiceInjector(context.TODO(), tc.args.w, tc.args.o)
+			r, err := ServiceInjector(context.Background(), tc.args.w, tc.args.o)
 
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\nReason: %s\nServiceInjector(...): -want error, +got error:\n%s", tc.reason, diff)

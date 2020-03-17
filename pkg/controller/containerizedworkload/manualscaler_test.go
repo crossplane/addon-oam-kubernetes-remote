@@ -85,7 +85,7 @@ func TestManualScalerModifier(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			err := manualScalerModifier(context.TODO(), tc.args.o, tc.args.t)
+			err := manualScalerModifier(context.Background(), tc.args.o, tc.args.t)
 
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\nReason: %s\nmanualScalerModifier(...): -want error, +got error:\n%s", tc.reason, diff)

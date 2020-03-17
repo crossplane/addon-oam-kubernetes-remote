@@ -105,7 +105,7 @@ func TestKubeAppWrapper(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			err := DeploymentFromKubeAppAccessor(context.TODO(), tc.args.o, tc.args.t, tc.args.m)
+			err := DeploymentFromKubeAppAccessor(context.Background(), tc.args.o, tc.args.t, tc.args.m)
 
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\nReason: %s\nDeploymentFromKubeAppAccessor(...): -want error, +got error:\n%s", tc.reason, diff)

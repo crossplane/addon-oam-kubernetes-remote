@@ -151,55 +151,49 @@ func KubeAppWrapper(ctx context.Context, w Workload, objs []Object) ([]Object, e
 
 var _ TranslationWrapper = ServiceInjector
 
-// ServiceInjector adds a Service object for every Deployment that has a
-// container with port defined into a workload translation.
+// ServiceInjector adds a Service object for the first Port on the first
+// Container for the first Deployment observed in a workload translation.
 func ServiceInjector(ctx context.Context, w Workload, objs []Object) ([]Object, error) {
 	if objs == nil {
 		return nil, nil
 	}
 
 	for _, o := range objs {
-		if o.GetObjectKind().GroupVersionKind() != deploymentGroupVersionKind {
+		d, ok := o.(*appsv1.Deployment)
+		if !ok {
 			continue
 		}
 
-		d, ok := o.(*appsv1.Deployment)
-		if !ok {
-			return nil, errors.New(errInjectService)
-		}
+		if len(d.Spec.Template.Spec.Containers) > 0 {
+			s := &corev1.Service{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       serviceKind,
+					APIVersion: serviceAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: d.GetName(),
+					Labels: map[string]string{
+						labelKey: string(w.GetUID()),
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Selector: d.Spec.Selector.MatchLabels,
+					Ports:    []corev1.ServicePort{},
+					Type:     corev1.ServiceTypeLoadBalancer,
+				},
+			}
 
-		for _, c := range d.Spec.Template.Spec.Containers {
-			serviceAdded := false
-			for _, port := range c.Ports {
-				s := &corev1.Service{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       serviceKind,
-						APIVersion: serviceAPIVersion,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name: d.GetName(),
-						Labels: map[string]string{
-							labelKey: string(w.GetUID()),
-						},
-					},
-					Spec: corev1.ServiceSpec{
-						Selector: d.Spec.Selector.MatchLabels,
-						Ports: []corev1.ServicePort{
-							{
-								Name:       d.GetName(),
-								Port:       8080,
-								TargetPort: intstr.FromInt(int(port.ContainerPort)),
-							},
-						},
-						Type: corev1.ServiceTypeLoadBalancer,
+			if len(d.Spec.Template.Spec.Containers[0].Ports) > 0 {
+				s.Spec.Ports = []corev1.ServicePort{
+					{
+						Name:       d.GetName(),
+						Port:       8080,
+						TargetPort: intstr.FromInt(int(d.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort)),
 					},
 				}
-				objs = append(objs, s)
-				break
 			}
-			if serviceAdded {
-				break
-			}
+			objs = append(objs, s)
+			break
 		}
 	}
 	return objs, nil

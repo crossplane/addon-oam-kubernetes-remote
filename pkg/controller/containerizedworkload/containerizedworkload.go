@@ -66,7 +66,7 @@ func SetupContainerizedWorkload(mgr ctrl.Manager, l logging.Logger) error {
 			workload.Kind(oamv1alpha2.ContainerizedWorkloadGroupVersionKind),
 			workload.WithLogger(l.WithValues("controller", name)),
 			workload.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-			workload.WithApplicator(resource.ApplyFn(workload.KubeAppApply)),
+			workload.WithApplyOptions(resource.ControllersMustMatch(), workload.KubeAppApplyOption()),
 			workload.WithTranslator(workload.NewObjectTranslatorWithWrappers(
 				containerizedWorkloadTranslator,
 				workload.ServiceInjector,

@@ -90,6 +90,13 @@ func WithApplicator(a resource.Applicator) ReconcilerOption {
 	}
 }
 
+// WithApplyOptions specifies options to pass to the applicator.
+func WithApplyOptions(a ...resource.ApplyOption) ReconcilerOption {
+	return func(r *Reconciler) {
+		r.applyOpts = a
+	}
+}
+
 // A Reconciler reconciles an OAM workload type by packaging it into a
 // KubernetesApplication.
 type Reconciler struct {
@@ -97,6 +104,7 @@ type Reconciler struct {
 	newWorkload func() Workload
 	workload    Translator
 	applicator  resource.Applicator
+	applyOpts   []resource.ApplyOption
 
 	log    logging.Logger
 	record event.Recorder
@@ -130,6 +138,7 @@ func NewReconciler(m ctrl.Manager, workload Kind, o ...ReconcilerOption) *Reconc
 		newWorkload: nw,
 		workload:    TranslateFn(NoopTranslate),
 		applicator:  resource.ApplyFn(resource.Apply),
+		applyOpts:   []resource.ApplyOption{resource.ControllersMustMatch()},
 		log:         logging.NewNopLogger(),
 		record:      event.NewNopRecorder(),
 	}
@@ -187,7 +196,7 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 		// so this label is not being used.
 		meta.AddLabels(o, map[string]string{lowerGroupKind(workload.GetObjectKind()): string(workload.GetUID())})
 
-		if err := r.applicator.Apply(ctx, r.client, o); err != nil {
+		if err := r.applicator.Apply(ctx, r.client, o, r.applyOpts...); err != nil {
 			log.Debug("Cannot apply workload translation", "error", err, "requeue-after", time.Now().Add(shortWait))
 			r.record.Event(workload, event.Warning(reasonCannotApplyWorkloadTranslation, err))
 			workload.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyWorkloadTranslation)))
