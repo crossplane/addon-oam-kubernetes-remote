@@ -6,6 +6,16 @@
 *.dylib
 *.vscode
 
+# Build artifacts
+/.cache
+/.work
+/_output
+cover.out
+/vendor
+/.vendor-new
+
+/stack-package
+
 # Test binary, built with `go test -c`
 *.test
 

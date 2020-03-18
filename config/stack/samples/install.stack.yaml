@@ -1,0 +1,8 @@
+---
+apiVersion: stacks.crossplane.io/v1alpha1
+kind: ClusterStackInstall
+metadata:
+  name: addon-oam-kubernetes-remote
+  namespace: oam
+spec:
+  package: "crossplane/addon-oam-kubernetes-remote:master"
