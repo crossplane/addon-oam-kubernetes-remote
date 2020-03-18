@@ -44,8 +44,6 @@ var (
 
 	containerName = "test-container"
 	portName      = "test-port"
-
-	trueVal = true
 )
 
 var (

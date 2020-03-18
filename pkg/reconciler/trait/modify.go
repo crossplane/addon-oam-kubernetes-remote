@@ -34,8 +34,7 @@ const (
 )
 
 var (
-	deploymentKind       = reflect.TypeOf(appsv1.Deployment{}).Name()
-	deploymentAPIVersion = appsv1.SchemeGroupVersion.String()
+	deploymentKind = reflect.TypeOf(appsv1.Deployment{}).Name()
 )
 
 // A Modifier is responsible for modifying or adding objects to a workload

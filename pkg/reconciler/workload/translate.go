@@ -35,12 +35,9 @@ import (
 
 const (
 	errWrapInKubeApp = "unable to wrap objects in KubernetesApplication"
-	errInjectService = "unable to inject Service in objects"
 )
 
 var (
-	deploymentGroupVersionKind = appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.Deployment{}).Name())
-
 	serviceKind       = reflect.TypeOf(corev1.Service{}).Name()
 	serviceAPIVersion = corev1.SchemeGroupVersion.String()
 )
