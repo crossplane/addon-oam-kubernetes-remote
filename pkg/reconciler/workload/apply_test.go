@@ -115,6 +115,26 @@ func TestKubeAppApply(t *testing.T) {
 				o: kubeApp(kaWithTemplate("cool-temp", deployment(dmWithReplicas(&replicas)))),
 			},
 		},
+		"PatchedRemoveResource": {
+			reason: "If existing and desired have different template names, the existing template should be overwritten by the desired",
+			args: args{
+				c: kubeApp(kaWithTemplate("cool-temp", deployment()), kaWithTemplate("nice-temp", deployment())),
+				d: kubeApp(kaWithTemplate("cool-temp", deployment())),
+			},
+			want: want{
+				o: kubeApp(kaWithTemplate("cool-temp", deployment())),
+			},
+		},
+		"PatchedAddResource": {
+			reason: "If existing and desired have different template names, the existing template should be overwritten by the desired",
+			args: args{
+				c: kubeApp(kaWithTemplate("cool-temp", deployment())),
+				d: kubeApp(kaWithTemplate("cool-temp", deployment()), kaWithTemplate("nice-temp", deployment())),
+			},
+			want: want{
+				o: kubeApp(kaWithTemplate("cool-temp", deployment()), kaWithTemplate("nice-temp", deployment())),
+			},
+		},
 		"PatchedOverwrite": {
 			reason: "If existing and desired have different template names, the existing template should be overwritten by the desired",
 			args: args{

@@ -25,19 +25,28 @@ import (
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 var (
 	errNotKubeApp            = "object is not a KubernetesApplication"
-	errCreateKubeApp         = "cannot create KubernetesApplication"
-	errGetKubeApp            = "cannot get KubernetesApplication"
-	errDiffController        = "existing KubernetesApplication has a different (or no) controller"
 	errMergeKubeAppTemplates = "cannot merge KubernetesApplicationResourceTemplates"
-	errPatchKubeApp          = "cannot patch existing KubernetesApplication"
 )
 
+type template struct {
+	gvk  schema.GroupVersionKind
+	name string
+}
+
 // KubeAppApplyOption ensures resource templates are merged instead of replaced
-// before patch if they have the same name and GroupVersionKind.
+// before patch if they have the same name and GroupVersionKind. We must merge
+// the current and desired templates prior to submitting a Patch to the API
+// server because KubernetesApplicationResourceTemplates are stored as an array
+// in the KubernetesApplication. This means that entire templates will be
+// replaced when a single field is different, per
+// https://tools.ietf.org/html/rfc7386. We instead patch each of the resource
+// templates individually before passing along the entire KubernetesApplication
+// to resource.Apply.
 func KubeAppApplyOption() resource.ApplyOption {
 	return func(_ context.Context, current, desired runtime.Object) error {
 		c, ok := current.(*workloadv1alpha1.KubernetesApplication)
@@ -48,14 +57,19 @@ func KubeAppApplyOption() resource.ApplyOption {
 		if !ok {
 			return errors.New(errNotKubeApp)
 		}
-		for i, temp := range c.Spec.ResourceTemplates {
-			if d.Spec.ResourceTemplates[i].Spec.Template.GroupVersionKind() != temp.Spec.Template.GroupVersionKind() {
+
+		index := make(map[template]int)
+		for i, t := range d.Spec.ResourceTemplates {
+			index[template{gvk: t.Spec.Template.GroupVersionKind(), name: t.GetName()}] = i
+		}
+
+		for _, t := range c.Spec.ResourceTemplates {
+			i, ok := index[template{gvk: t.Spec.Template.GroupVersionKind(), name: t.GetName()}]
+			if !ok {
 				continue
 			}
-			if d.Spec.ResourceTemplates[i].GetName() != temp.GetName() {
-				continue
-			}
-			jc, err := json.Marshal(temp.Spec.Template)
+
+			jc, err := json.Marshal(t.Spec.Template)
 			if err != nil {
 				return errors.Wrap(err, errMergeKubeAppTemplates)
 			}
@@ -63,14 +77,15 @@ func KubeAppApplyOption() resource.ApplyOption {
 			if err != nil {
 				return errors.Wrap(err, errMergeKubeAppTemplates)
 			}
-			merge, err := jsonpatch.MergePatch(jc, jd)
+			merged, err := jsonpatch.MergePatch(jc, jd)
 			if err != nil {
 				return errors.Wrap(err, errMergeKubeAppTemplates)
 			}
-			if err := json.Unmarshal(merge, d.Spec.ResourceTemplates[i].Spec.Template); err != nil {
+			if err := json.Unmarshal(merged, d.Spec.ResourceTemplates[i].Spec.Template); err != nil {
 				return errors.Wrap(err, errMergeKubeAppTemplates)
 			}
 		}
+
 		return nil
 	}
 }
