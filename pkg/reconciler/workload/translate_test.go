@@ -217,7 +217,6 @@ func TestKubeAppWrapper(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			r, err := KubeAppWrapper(context.Background(), tc.args.w, tc.args.o)
-			fmt.Println(name)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\nReason: %s\nKubeAppWrapper(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
