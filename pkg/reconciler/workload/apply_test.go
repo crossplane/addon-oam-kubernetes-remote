@@ -18,6 +18,7 @@ package workload
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -25,7 +26,6 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
@@ -39,14 +39,14 @@ type kubeAppModifier func(*workloadv1alpha1.KubernetesApplication)
 
 func kaWithTemplate(name string, o runtime.Object) kubeAppModifier {
 	return func(a *workloadv1alpha1.KubernetesApplication) {
-		u, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
+		b, _ := json.Marshal(o)
 		a.Spec.ResourceTemplates = append(a.Spec.ResourceTemplates, workloadv1alpha1.KubernetesApplicationResourceTemplate{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:              name,
 				CreationTimestamp: metav1.NewTime(time.Date(0, 0, 0, 0, 0, 0, 0, time.Local)),
 			},
 			Spec: workloadv1alpha1.KubernetesApplicationResourceSpec{
-				Template: &unstructured.Unstructured{Object: u},
+				Template: runtime.RawExtension{Raw: b},
 			},
 		})
 	}
@@ -153,7 +153,10 @@ func TestKubeAppApplyOption(t *testing.T) {
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nKubeAppApplyOption(...): -want error, +got error\n%s\n", tc.reason, diff)
 			}
-			if diff := cmp.Diff(tc.want.o, tc.args.d); diff != "" {
+
+			o, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(tc.want.o)
+			d, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(tc.args.d)
+			if diff := cmp.Diff(o, d); diff != "" {
 				t.Errorf("\n%s\nKubeAppApplyOption(...): -want, +got\n%s\n", tc.reason, diff)
 			}
 		})

@@ -43,6 +43,9 @@ source: "https://github.com/crossplane/addon-oam-kubernetes-remote"
 # RBAC ClusterRoles will be generated permitting this stack to use all verbs on all
 # resources in the groups listed below.
 permissionScope: Cluster
+dependsOn:
+- crd: '*.workload.crossplane.io/v1alpha1'
+- crd: '*.oam.crossplane.io/v1alpha1'
 
 # License SPDX name: https://spdx.org/licenses/
 license: Apache-2.0

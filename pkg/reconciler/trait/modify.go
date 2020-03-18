@@ -18,6 +18,7 @@ package trait
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -95,19 +96,23 @@ func DeploymentFromKubeAppAccessor(ctx context.Context, obj runtime.Object, t Tr
 	}
 
 	for i, r := range a.Spec.ResourceTemplates {
-		if r.Spec.Template.GroupVersionKind().Kind == deploymentKind {
+		template := &unstructured.Unstructured{}
+		if err := json.Unmarshal(r.Spec.Template.Raw, template); err != nil {
+			return err
+		}
+		if template.GroupVersionKind().Kind == deploymentKind {
 			d := &appsv1.Deployment{}
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.Spec.Template.UnstructuredContent(), d); err != nil {
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(template.UnstructuredContent(), d); err != nil {
 				return err
 			}
 			if err := m(ctx, d, t); err != nil {
 				return err
 			}
-			template, err := runtime.DefaultUnstructuredConverter.ToUnstructured(d)
+			deployment, err := json.Marshal(d)
 			if err != nil {
 				return err
 			}
-			a.Spec.ResourceTemplates[i].Spec.Template = &unstructured.Unstructured{Object: template}
+			a.Spec.ResourceTemplates[i].Spec.Template = runtime.RawExtension{Raw: deployment}
 			return nil
 		}
 	}

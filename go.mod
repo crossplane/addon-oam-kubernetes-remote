@@ -3,7 +3,7 @@ module github.com/crossplane/addon-oam-kubernetes-remote
 go 1.13
 
 require (
-	github.com/crossplane/crossplane v0.8.0-rc.0.20200306224957-b724d2eba282
+	github.com/crossplane/crossplane v0.8.0-rc.0.20200318043552-20699555dc36
 	github.com/crossplane/crossplane-runtime v0.5.1-0.20200316221948-c092201a3e32
 	github.com/evanphx/json-patch v4.5.0+incompatible
 	github.com/google/go-cmp v0.3.1
