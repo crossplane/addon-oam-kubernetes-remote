@@ -184,7 +184,7 @@ func ServiceInjector(ctx context.Context, w Workload, objs []Object) ([]Object, 
 				s.Spec.Ports = []corev1.ServicePort{
 					{
 						Name:       d.GetName(),
-						Port:       8080,
+						Port:       d.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
 						TargetPort: intstr.FromInt(int(d.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort)),
 					},
 				}
