@@ -18,6 +18,7 @@ package workload
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -26,7 +27,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -35,12 +35,9 @@ import (
 
 const (
 	errWrapInKubeApp = "unable to wrap objects in KubernetesApplication"
-	errInjectService = "unable to inject Service in objects"
 )
 
 var (
-	deploymentGroupVersionKind = appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.Deployment{}).Name())
-
 	serviceKind       = reflect.TypeOf(corev1.Service{}).Name()
 	serviceAPIVersion = corev1.SchemeGroupVersion.String()
 )
@@ -118,7 +115,7 @@ func KubeAppWrapper(ctx context.Context, w Workload, objs []Object) ([]Object, e
 	app := &workloadv1alpha1.KubernetesApplication{}
 
 	for _, o := range objs {
-		u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
+		b, err := json.Marshal(o)
 		if err != nil {
 			return nil, errors.Wrap(err, errWrapInKubeApp)
 		}
@@ -131,7 +128,7 @@ func KubeAppWrapper(ctx context.Context, w Workload, objs []Object) ([]Object, e
 				},
 			},
 			Spec: workloadv1alpha1.KubernetesApplicationResourceSpec{
-				Template: &unstructured.Unstructured{Object: u},
+				Template: runtime.RawExtension{Raw: b},
 			},
 		}
 

@@ -1,0 +1,51 @@
+# Human readable title of application.
+title: OAM Kubernetes Remote Addon
+
+overviewShort: The OAM Kubernetes Remote Addon allows scheduling of OAM configurations to remote Kubernetes clusters.
+overview: |-
+  Installing the OAM Kubernetes Remote Addon enables a Crossplane cluster to
+  schedule workloads rendered from OAM configurations to remote Kubernetes
+  clusters that it has access to.
+
+# Markdown description of this entry
+readme: |
+  The OAM Kubernetes Remote Addon allows for scheduling the resources created by
+  the `ApplicationConfiguration` controller to a remote Kubernetes cluster.
+
+# Maintainer names and emails.
+maintainers:
+- name: Dan Mangum
+  email: dan@upbound.io
+
+# Owner names and emails.
+owners:
+- name: Dan Mangum
+  email: dan@upbound.io
+
+# Human readable company name
+company: Crossplane
+
+# Primary category describing this stack
+category: Infrastructure
+
+# Type of package: Provider, Stack, or Application
+packageType: Addon
+
+# Keywords that describe this application and help search indexing
+keywords:
+- "oam"
+- "remote"
+
+# Links to more information about the application (about page, source code, etc.)
+website: "https://crossplane.io"
+source: "https://github.com/crossplane/addon-oam-kubernetes-remote"
+
+# RBAC ClusterRoles will be generated permitting this stack to use all verbs on all
+# resources in the groups listed below.
+permissionScope: Cluster
+dependsOn:
+- crd: '*.workload.crossplane.io/v1alpha1'
+- crd: '*.oam.crossplane.io/v1alpha1'
+
+# License SPDX name: https://spdx.org/licenses/
+license: Apache-2.0

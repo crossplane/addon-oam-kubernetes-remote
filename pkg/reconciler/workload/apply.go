@@ -20,12 +20,14 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
-	workloadv1alpha1 "github.com/crossplane/crossplane/apis/workload/v1alpha1"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/crossplane/crossplane-runtime/pkg/resource"
+	workloadv1alpha1 "github.com/crossplane/crossplane/apis/workload/v1alpha1"
 )
 
 var (
@@ -60,30 +62,28 @@ func KubeAppApplyOption() resource.ApplyOption {
 
 		index := make(map[template]int)
 		for i, t := range d.Spec.ResourceTemplates {
-			index[template{gvk: t.Spec.Template.GroupVersionKind(), name: t.GetName()}] = i
+			temp := &unstructured.Unstructured{}
+			if err := json.Unmarshal(t.Spec.Template.Raw, temp); err != nil {
+				return errors.Wrap(err, errMergeKubeAppTemplates)
+			}
+			index[template{gvk: temp.GroupVersionKind(), name: t.GetName()}] = i
 		}
 
 		for _, t := range c.Spec.ResourceTemplates {
-			i, ok := index[template{gvk: t.Spec.Template.GroupVersionKind(), name: t.GetName()}]
+			temp := &unstructured.Unstructured{}
+			if err := json.Unmarshal(t.Spec.Template.Raw, temp); err != nil {
+				return errors.Wrap(err, errMergeKubeAppTemplates)
+			}
+			i, ok := index[template{gvk: temp.GroupVersionKind(), name: t.GetName()}]
 			if !ok {
 				continue
 			}
 
-			jc, err := json.Marshal(t.Spec.Template)
+			merged, err := jsonpatch.MergePatch(t.Spec.Template.Raw, d.Spec.ResourceTemplates[i].Spec.Template.Raw)
 			if err != nil {
 				return errors.Wrap(err, errMergeKubeAppTemplates)
 			}
-			jd, err := json.Marshal(d.Spec.ResourceTemplates[i].Spec.Template)
-			if err != nil {
-				return errors.Wrap(err, errMergeKubeAppTemplates)
-			}
-			merged, err := jsonpatch.MergePatch(jc, jd)
-			if err != nil {
-				return errors.Wrap(err, errMergeKubeAppTemplates)
-			}
-			if err := json.Unmarshal(merged, d.Spec.ResourceTemplates[i].Spec.Template); err != nil {
-				return errors.Wrap(err, errMergeKubeAppTemplates)
-			}
+			d.Spec.ResourceTemplates[i].Spec.Template = runtime.RawExtension{Raw: merged}
 		}
 
 		return nil

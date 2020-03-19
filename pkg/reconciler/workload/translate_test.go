@@ -18,6 +18,7 @@ package workload
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
@@ -27,7 +28,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -44,8 +45,6 @@ var (
 
 	containerName = "test-container"
 	portName      = "test-port"
-
-	trueVal = true
 )
 
 var (
@@ -154,6 +153,7 @@ func service(mod ...serviceModifier) *corev1.Service {
 }
 
 func TestKubeAppWrapper(t *testing.T) {
+	deployBytes, _ := json.Marshal(deployment())
 	type args struct {
 		w Workload
 		o []Object
@@ -186,15 +186,7 @@ func TestKubeAppWrapper(t *testing.T) {
 						UID:       types.UID(workloadUID),
 					},
 				},
-				o: []Object{&appsv1.Deployment{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       deploymentKind,
-						APIVersion: deploymentAPIVersion,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "cool-containers",
-					},
-				}},
+				o: []Object{deployment()},
 			},
 			want: want{result: []Object{&workloadv1alpha1.KubernetesApplication{
 				ObjectMeta: metav1.ObjectMeta{
@@ -209,29 +201,11 @@ func TestKubeAppWrapper(t *testing.T) {
 					ResourceTemplates: []workloadv1alpha1.KubernetesApplicationResourceTemplate{
 						{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:   fmt.Sprintf("%s-%s", "cool-containers", "deployment"),
+								Name:   fmt.Sprintf("%s-%s", workloadName, "deployment"),
 								Labels: map[string]string{labelKey: workloadUID},
 							},
 							Spec: workloadv1alpha1.KubernetesApplicationResourceSpec{
-								Template: &unstructured.Unstructured{
-									Object: map[string]interface{}{
-										"apiVersion": string("apps/v1"),
-										"kind":       string("Deployment"),
-										"metadata": map[string]interface{}{
-											"creationTimestamp": nil,
-											"name":              "cool-containers",
-										},
-										"spec": map[string]interface{}{
-											"selector": nil,
-											"strategy": map[string]interface{}{},
-											"template": map[string]interface{}{
-												"metadata": map[string]interface{}{"creationTimestamp": nil},
-												"spec":     map[string]interface{}{"containers": nil},
-											},
-										},
-										"status": map[string]interface{}{},
-									},
-								},
+								Template: runtime.RawExtension{Raw: deployBytes},
 							},
 						},
 					},
@@ -243,7 +217,6 @@ func TestKubeAppWrapper(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			r, err := KubeAppWrapper(context.Background(), tc.args.w, tc.args.o)
-
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\nReason: %s\nKubeAppWrapper(...): -want error, +got error:\n%s", tc.reason, diff)
 			}

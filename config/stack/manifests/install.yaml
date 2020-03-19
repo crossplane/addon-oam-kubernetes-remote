@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: addon-oam-kubernetes-remote
+  labels:
+    core.crossplane.io/name: "addon-oam-kubernetes-remote"
+spec:
+  selector:
+    matchLabels:
+      core.crossplane.io/name: "addon-oam-kubernetes-remote"
+  replicas: 1
+  template:
+    metadata:
+      name: "addon-oam-kubernetes-remote-controller"
+      labels:
+        core.crossplane.io/name: "addon-oam-kubernetes-remote"
+    spec:
+      containers:
+      - name: "addon-oam-kubernetes-remote-controller"
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace

@@ -18,6 +18,7 @@ package workload
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -25,11 +26,8 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	workloadv1alpha1 "github.com/crossplane/crossplane/apis/workload/v1alpha1"
@@ -39,23 +37,16 @@ var replicas = int32(3)
 
 type kubeAppModifier func(*workloadv1alpha1.KubernetesApplication)
 
-func kaWithController(o metav1.Object, s schema.GroupVersionKind) kubeAppModifier {
-	return func(a *workloadv1alpha1.KubernetesApplication) {
-		ref := metav1.NewControllerRef(o, s)
-		meta.AddControllerReference(a, *ref)
-	}
-}
-
 func kaWithTemplate(name string, o runtime.Object) kubeAppModifier {
 	return func(a *workloadv1alpha1.KubernetesApplication) {
-		u, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
+		b, _ := json.Marshal(o)
 		a.Spec.ResourceTemplates = append(a.Spec.ResourceTemplates, workloadv1alpha1.KubernetesApplicationResourceTemplate{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:              name,
 				CreationTimestamp: metav1.NewTime(time.Date(0, 0, 0, 0, 0, 0, 0, time.Local)),
 			},
 			Spec: workloadv1alpha1.KubernetesApplicationResourceSpec{
-				Template: &unstructured.Unstructured{Object: u},
+				Template: runtime.RawExtension{Raw: b},
 			},
 		})
 	}
@@ -77,11 +68,10 @@ func kubeApp(mod ...kubeAppModifier) *workloadv1alpha1.KubernetesApplication {
 
 var _ resource.ApplyOption = KubeAppApplyOption()
 
-func TestKubeAppApply(t *testing.T) {
+func TestKubeAppApplyOption(t *testing.T) {
 	type args struct {
-		ctx context.Context
-		c   runtime.Object
-		d   runtime.Object
+		c runtime.Object
+		d runtime.Object
 	}
 
 	type want struct {
@@ -161,10 +151,13 @@ func TestKubeAppApply(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			err := KubeAppApplyOption()(context.Background(), tc.args.c, tc.args.d)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\nKubeAppApply(...): -want error, +got error\n%s\n", tc.reason, diff)
+				t.Errorf("\n%s\nKubeAppApplyOption(...): -want error, +got error\n%s\n", tc.reason, diff)
 			}
-			if diff := cmp.Diff(tc.want.o, tc.args.d); diff != "" {
-				t.Errorf("\n%s\nKubeAppApply(...): -want, +got\n%s\n", tc.reason, diff)
+
+			o, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(tc.want.o)
+			d, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(tc.args.d)
+			if diff := cmp.Diff(o, d); diff != "" {
+				t.Errorf("\n%s\nKubeAppApplyOption(...): -want, +got\n%s\n", tc.reason, diff)
 			}
 		})
 	}

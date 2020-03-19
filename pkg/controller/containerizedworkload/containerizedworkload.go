@@ -20,7 +20,6 @@ import (
 	"context"
 	"reflect"
 	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -35,12 +34,6 @@ import (
 	oamv1alpha2 "github.com/crossplane/crossplane/apis/oam/v1alpha2"
 
 	"github.com/crossplane/addon-oam-kubernetes-remote/pkg/reconciler/workload"
-)
-
-const (
-	reconcileTimeout = 1 * time.Minute
-	shortWait        = 30 * time.Second
-	longWait         = 1 * time.Minute
 )
 
 // Reconcile error strings.

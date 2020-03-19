@@ -18,8 +18,6 @@ package trait
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -221,12 +219,4 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 
 	trait.SetConditions(v1alpha1.ReconcileSuccess())
 	return reconcile.Result{RequeueAfter: longWait}, errors.Wrap(r.client.Status().Update(ctx, trait), errUpdateTraitStatus)
-}
-
-func workloadGroupKind(w oamv1alpha2.WorkloadReference) string {
-	gv := strings.Split(w.APIVersion, "/")
-	if len(gv) != 2 {
-		return strings.ToLower(w.Kind)
-	}
-	return strings.ToLower(fmt.Sprintf("%s.%s", w.Kind, gv[0]))
 }
