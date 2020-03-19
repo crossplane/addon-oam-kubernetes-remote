@@ -119,7 +119,7 @@ func sWithContainerPort(target int) serviceModifier {
 	return func(s *corev1.Service) {
 		s.Spec.Ports = append(s.Spec.Ports, corev1.ServicePort{
 			Name:       workloadName,
-			Port:       8080,
+			Port:       int32(target),
 			TargetPort: intstr.FromInt(target),
 		})
 	}
