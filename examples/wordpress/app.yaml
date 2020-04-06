@@ -27,9 +27,11 @@ spec:
       containers:
       - name: wordpress
         image: wordpress:4.6.1-apache
-        # TODO(negz): Allow environment variables to be set from a secret? OAM
-        # doesn't have a concept of Kubernetes secrets, so we will likely need
-        # to abstract this somehow.
+        env:
+        - name: TEST_ENV
+          fromSecret:
+            name: replaceme
+            key: replaceme
         ports:
         - containerPort: 80
           name: wordpress
@@ -41,6 +43,12 @@ spec:
   - name: image
     fieldPaths:
     - spec.containers[0].image
+  - name: env-var
+    fieldPaths:
+    - spec.containers[0].env[0].fromSecret.name
+  - name: env-var-key
+    fieldPaths:
+    - spec.containers[0].env[0].fromSecret.key
 ---
 apiVersion: core.oam.dev/v1alpha2
 kind: ApplicationConfiguration
@@ -54,6 +62,10 @@ spec:
       value: example-appconfig-workload
     - name: image
       value: wordpress:php7.2
+    - name: env-var
+      value: test
+    - name: env-var-key
+      value: key
     traits:
     - trait:
         apiVersion: core.oam.dev/v1alpha2
