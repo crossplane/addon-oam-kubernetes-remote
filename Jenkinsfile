@@ -70,7 +70,9 @@ pipeline {
             post {
                 always {
                     archiveArtifacts "_output/tests/**/*"
-                    junit "_output/tests/**/unit-tests.xml"
+                    // NOTE(hasheddan): this should be re-enabled when unit
+                    // tests exist in this repo
+                    // junit "_output/tests/**/unit-tests.xml"
                     cobertura coberturaReportFile: '_output/tests/**/cobertura-coverage.xml',
                             classCoverageTargets: '50, 0, 0',
                             conditionalCoverageTargets: '70, 0, 0',
