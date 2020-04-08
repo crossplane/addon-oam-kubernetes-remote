@@ -45,7 +45,7 @@ source: "https://github.com/crossplane/addon-oam-kubernetes-remote"
 permissionScope: Cluster
 dependsOn:
 - crd: '*.workload.crossplane.io/v1alpha1'
-- crd: '*.oam.crossplane.io/v1alpha1'
+- crd: '*.oam.crossplane.io/v1alpha2'
 
 # License SPDX name: https://spdx.org/licenses/
 license: Apache-2.0
