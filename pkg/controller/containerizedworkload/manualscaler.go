@@ -41,6 +41,7 @@ func SetupManualScalerTrait(mgr ctrl.Manager, l logging.Logger) error {
 		For(&oamv1alpha2.ManualScalerTrait{}).
 		Complete(trait.NewReconciler(mgr,
 			resource.TraitKind(oamv1alpha2.ManualScalerTraitGroupVersionKind),
+			resource.WorkloadKind(oamv1alpha2.ContainerizedWorkloadGroupVersionKind),
 			resource.ObjectKind(workloadv1alpha1.KubernetesApplicationGroupVersionKind),
 			trait.WithLogger(l.WithValues("controller", name)),
 			trait.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
