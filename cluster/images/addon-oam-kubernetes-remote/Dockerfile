@@ -6,7 +6,7 @@ ARG TINI_VERSION
 
 ADD addon /usr/local/bin/crossplane-addon-oam-kubernetes-remote
 
-COPY stack-package /
+COPY package /
 
 EXPOSE 8080
 USER 1001
